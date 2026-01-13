@@ -193,13 +193,12 @@ void track_destroy(track_t *track) {
 
 /* Render grass ground plane around camera position */
 static void render_grass(camera_t *cam) {
-    /* Large grass quad centered on camera, slightly below track level */
-    /* This ensures grass appears below horizon, sky (background) above */
-    float grass_size = 2000.0f;
-    float grass_y = -0.1f;  /* Below track surface at Y=0 */
+    /* Grass quad centered on camera, well below track level */
+    /* Smaller size reduces far-distance depth precision issues */
+    float grass_size = 500.0f;
+    float grass_y = -1.0f;  /* Well below track surface at Y=0 */
 
     vec3_t center = cam->position;
-    center.y = grass_y;
 
     vertex_t v0, v1, v2, v3;
     v0.pos = vec3_create(center.x - grass_size, grass_y, center.z - grass_size);
