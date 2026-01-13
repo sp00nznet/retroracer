@@ -127,7 +127,8 @@ static int project_to_screen(vec3_t view_pos, float *sx, float *sy, float *sz) {
     *sz = inv_z;  /* PVR uses 1/z for depth */
 
     /* Clamp depth to valid range */
-    if (*sz < 0.0001f) *sz = 0.0001f;
+    /* Use larger minimum to prevent Z-fighting with background at far distances */
+    if (*sz < 0.001f) *sz = 0.001f;
     if (*sz > 1.0f) *sz = 1.0f;
 
     return 1;
