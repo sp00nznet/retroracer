@@ -1,1 +1,3 @@
 # retroracer
+
+We will be creating a dreamcast game. utilize whatever open source liberaries exist like kallistos. 3d racing game. we will use publically available n64 style models where possible. the game will consist of 4 modes. 1. an AI race mode, lets the player select AI mode and the ai races itself. 2 a single track mode. we play one round of the game. 3. time trial mode, try to get the estimated best time across the finish line. 4 grand prix 4 races. each map is procedural generated. 
