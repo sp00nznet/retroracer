@@ -156,12 +156,9 @@ static int project_to_screen(vec3_t view_pos, float *sx, float *sy, float *sz) {
     *sy = (1.0f - proj_y) * 0.5f * SCREEN_HEIGHT;
     *sz = inv_z;  /* PVR uses 1/z for depth */
 
-    /* Add small depth bias to push 3D geometry forward, preventing Z-fighting */
-    /* This ensures track always renders in front of sky background (at 0.0005) */
-    *sz += 0.001f;
-
-    /* Clamp depth to valid range */
-    if (*sz < 0.002f) *sz = 0.002f;  /* Minimum above sky depth (0.0005) */
+    /* Clamp depth to valid PVR range */
+    /* Lower minimum allows better depth separation for far geometry */
+    if (*sz < 0.0001f) *sz = 0.0001f;
     if (*sz > 1.0f) *sz = 1.0f;
 
     return 1;
