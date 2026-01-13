@@ -487,12 +487,25 @@ static void render_countdown(void) {
 }
 
 void game_render(void) {
-    render_begin_frame();
-
     switch (game.state) {
         case GAME_STATE_MENU:
+            /* Menu renders directly to VRAM, no PVR */
+            menu_render();
+            break;
+
         case GAME_STATE_PAUSED:
         case GAME_STATE_RESULTS:
+            /* Render game in background, then menu overlay */
+            render_begin_frame();
+            render_clear(PACK_COLOR(255, 100, 150, 200));
+            if (game.track) {
+                track_render(game.track, &game.camera);
+            }
+            for (int i = 0; i < game.vehicle_count; i++) {
+                vehicle_render(game.vehicles[i], &game.camera);
+            }
+            render_end_frame();
+            /* Now draw menu on top */
             menu_render();
             break;
 
@@ -500,6 +513,7 @@ void game_render(void) {
         case GAME_STATE_RACING:
         case GAME_STATE_FINISHED:
             /* Render 3D scene */
+            render_begin_frame();
             render_clear(PACK_COLOR(255, 100, 150, 200));  /* Sky color */
 
             if (game.track) {
@@ -510,7 +524,9 @@ void game_render(void) {
                 vehicle_render(game.vehicles[i], &game.camera);
             }
 
-            /* Render HUD */
+            render_end_frame();
+
+            /* Render HUD after PVR completes */
             render_hud();
 
             /* Countdown overlay */
@@ -522,8 +538,6 @@ void game_render(void) {
         default:
             break;
     }
-
-    render_end_frame();
 }
 
 float game_get_delta_time(void) {

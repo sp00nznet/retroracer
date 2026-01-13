@@ -10,6 +10,12 @@
 #include <string.h>
 #include <stdio.h>
 
+#ifdef DREAMCAST
+#include <kos.h>
+#include <dc/biosfont.h>
+#include <dc/video.h>
+#endif
+
 static menu_state_t menu_state;
 static int menu_active = 1;
 
@@ -261,9 +267,42 @@ void menu_update(input_state_t *input, float dt) {
     }
 }
 
+/* Draw text directly to VRAM (for menu rendering) */
+static void draw_menu_text(int x, int y, uint32_t color, const char *text) {
+#ifdef DREAMCAST
+    bfont_set_foreground_color(color);
+    bfont_draw_str(vram_s + y * 640 + x, 640, 0, text);
+#else
+    (void)x; (void)y; (void)color;
+    printf("%s\n", text);
+#endif
+}
+
+/* Fill screen with solid color (for menu background) */
+static void fill_screen(uint32_t color) {
+#ifdef DREAMCAST
+    uint16_t col16 = ((color >> 8) & 0xF800) |  /* R */
+                     ((color >> 5) & 0x07E0) |  /* G */
+                     ((color >> 3) & 0x001F);   /* B */
+
+    uint16_t *vram = vram_s;
+    for (int i = 0; i < 640 * 480; i++) {
+        vram[i] = col16;
+    }
+#else
+    (void)color;
+#endif
+}
+
 void menu_render(void) {
-    /* Clear background */
-    render_clear(PACK_COLOR(255, 20, 20, 40));
+#ifdef DREAMCAST
+    /* For menu, we bypass PVR and draw directly to VRAM */
+    /* Wait for any PVR operations to complete */
+    vid_waitvbl();
+
+    /* Fill background with dark blue */
+    fill_screen(PACK_COLOR(255, 20, 20, 60));
+#endif
 
     int screen_w = 640;
     int screen_h = 480;
@@ -271,17 +310,17 @@ void menu_render(void) {
 
     /* Draw title */
     const char *title = screen_titles[menu_state.current_screen];
-    int title_x = center_x - (int)(strlen(title) * 6);  /* Approximate centering */
-    render_draw_text(title_x, 60, COLOR_YELLOW, title);
+    int title_x = center_x - (int)(strlen(title) * 6);
+    draw_menu_text(title_x, 60, COLOR_YELLOW, title);
 
     /* Draw subtitle based on screen */
     if (menu_state.current_screen == MENU_MAIN) {
-        render_draw_text(center_x - 100, 100, COLOR_WHITE, "Dreamcast Racing Game");
+        draw_menu_text(center_x - 110, 100, COLOR_WHITE, "Dreamcast Racing Game");
     }
 
     /* Draw menu items */
     int start_y = 180;
-    int item_height = 40;
+    int item_height = 30;
 
     for (int i = 0; i < menu_state.item_count; i++) {
         menu_item_t *item = &menu_state.items[i];
@@ -292,13 +331,13 @@ void menu_render(void) {
         if (i == menu_state.selected_index) {
             color = COLOR_YELLOW;
             /* Draw selection indicator */
-            render_draw_text(x - 20, y, COLOR_YELLOW, ">");
+            draw_menu_text(x - 20, y, COLOR_YELLOW, ">");
         }
         if (!item->enabled) {
             color = COLOR_GRAY;
         }
 
-        render_draw_text(x, y, color, item->text);
+        draw_menu_text(x, y, color, item->text);
     }
 
     /* Draw mode-specific info */
@@ -310,11 +349,11 @@ void menu_render(void) {
             case 2: desc = "Beat the best lap time"; break;
             case 3: desc = "4-race championship"; break;
         }
-        render_draw_text(center_x - 120, 400, COLOR_GRAY, desc);
+        draw_menu_text(center_x - 130, 380, COLOR_GRAY, desc);
     }
 
     /* Draw controls hint */
-    render_draw_text(20, screen_h - 40, COLOR_GRAY, "A: Select  B: Back  D-Pad: Navigate");
+    draw_menu_text(20, screen_h - 40, COLOR_GRAY, "A:Select B:Back D-Pad:Navigate");
 }
 
 int menu_is_active(void) {
@@ -327,15 +366,15 @@ void menu_show_pause(void) {
 }
 
 void menu_show_results(float time, float best_time, int place) {
+    (void)time; (void)best_time; (void)place;
     menu_set_screen(MENU_RESULTS);
     menu_active = 1;
-    /* Store results for display - would need additional state */
 }
 
 void menu_show_standings(int *points, int num_racers) {
+    (void)points; (void)num_racers;
     menu_set_screen(MENU_GRAND_PRIX_STANDINGS);
     menu_active = 1;
-    /* Store standings for display */
 }
 
 game_mode_t menu_get_mode(void) {

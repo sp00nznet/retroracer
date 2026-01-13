@@ -12,18 +12,33 @@
 #include <kos.h>
 #include <dc/pvr.h>
 #include <dc/video.h>
-#else
-/* Stubs for non-Dreamcast builds */
+#include <dc/biosfont.h>
 #endif
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
 
 static camera_t *current_camera = NULL;
+static mat4_t view_proj_matrix;
+
+#ifdef DREAMCAST
+static pvr_poly_hdr_t poly_hdr;
+static int poly_hdr_initialized = 0;
+
+static void init_poly_header(void) {
+    if (poly_hdr_initialized) return;
+
+    pvr_poly_cxt_t cxt;
+    pvr_poly_cxt_col(&cxt, PVR_LIST_OP_POLY);
+    cxt.gen.culling = PVR_CULLING_NONE;  /* Disable culling to see all faces */
+    pvr_poly_compile(&poly_hdr, &cxt);
+    poly_hdr_initialized = 1;
+}
+#endif
 
 void render_init(void) {
 #ifdef DREAMCAST
-    /* Initialize PVR */
+    /* Initialize PVR with proper settings */
     pvr_init_params_t params = {
         { PVR_BINSIZE_16, PVR_BINSIZE_0, PVR_BINSIZE_16, PVR_BINSIZE_0, PVR_BINSIZE_0 },
         512 * 1024
@@ -32,6 +47,9 @@ void render_init(void) {
 
     /* Set video mode */
     vid_set_mode(DM_640x480, PM_RGB565);
+
+    /* Initialize polygon header */
+    init_poly_header();
 #endif
 }
 
@@ -40,6 +58,9 @@ void render_begin_frame(void) {
     pvr_wait_ready();
     pvr_scene_begin();
     pvr_list_begin(PVR_LIST_OP_POLY);
+
+    /* Submit the polygon header once at the start */
+    pvr_prim(&poly_hdr, sizeof(poly_hdr));
 #endif
 }
 
@@ -62,6 +83,9 @@ void render_clear(uint32_t color) {
 
 void render_set_camera(camera_t *cam) {
     current_camera = cam;
+    if (cam) {
+        view_proj_matrix = mat4_multiply(cam->proj_matrix, cam->view_matrix);
+    }
 }
 
 void camera_update(camera_t *cam) {
@@ -74,20 +98,25 @@ void camera_update(camera_t *cam) {
     );
 }
 
-/* Transform vertex to screen space */
-static int transform_vertex(vertex_t *v, vec3_t *screen_pos, mat4_t mvp) {
-    vec3_t transformed = mat4_transform_vec3(mvp, v->pos);
+/* Transform world position to screen space */
+static int transform_to_screen(vec3_t world_pos, float *sx, float *sy, float *sz) {
+    if (!current_camera) return 0;
 
-    /* Clip against near plane */
-    if (transformed.z < 0.1f) {
+    /* Transform by view-projection matrix */
+    vec3_t clip = mat4_transform_vec3(view_proj_matrix, world_pos);
+
+    /* Check if behind camera */
+    if (clip.z < 0.1f) {
         return 0;
     }
 
-    /* Perspective divide and screen transform */
-    float inv_z = 1.0f / transformed.z;
-    screen_pos->x = (transformed.x * inv_z + 1.0f) * 0.5f * SCREEN_WIDTH;
-    screen_pos->y = (1.0f - transformed.y * inv_z) * 0.5f * SCREEN_HEIGHT;
-    screen_pos->z = inv_z;
+    /* Perspective divide */
+    float inv_z = 1.0f / clip.z;
+
+    /* Convert to screen coordinates */
+    *sx = (clip.x * inv_z * 0.5f + 0.5f) * SCREEN_WIDTH;
+    *sy = (0.5f - clip.y * inv_z * 0.5f) * SCREEN_HEIGHT;
+    *sz = inv_z;  /* PVR uses 1/z for depth */
 
     return 1;
 }
@@ -95,46 +124,50 @@ static int transform_vertex(vertex_t *v, vec3_t *screen_pos, mat4_t mvp) {
 void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
     if (!current_camera) return;
 
-    mat4_t mvp = mat4_multiply(current_camera->proj_matrix, current_camera->view_matrix);
+    float sx0, sy0, sz0;
+    float sx1, sy1, sz1;
+    float sx2, sy2, sz2;
 
-    vec3_t s0, s1, s2;
-    if (!transform_vertex(v0, &s0, mvp)) return;
-    if (!transform_vertex(v1, &s1, mvp)) return;
-    if (!transform_vertex(v2, &s2, mvp)) return;
+    /* Transform all three vertices */
+    if (!transform_to_screen(v0->pos, &sx0, &sy0, &sz0)) return;
+    if (!transform_to_screen(v1->pos, &sx1, &sy1, &sz1)) return;
+    if (!transform_to_screen(v2->pos, &sx2, &sy2, &sz2)) return;
+
+    /* Basic screen bounds check */
+    if ((sx0 < 0 && sx1 < 0 && sx2 < 0) ||
+        (sx0 > SCREEN_WIDTH && sx1 > SCREEN_WIDTH && sx2 > SCREEN_WIDTH) ||
+        (sy0 < 0 && sy1 < 0 && sy2 < 0) ||
+        (sy0 > SCREEN_HEIGHT && sy1 > SCREEN_HEIGHT && sy2 > SCREEN_HEIGHT)) {
+        return;
+    }
 
 #ifdef DREAMCAST
     pvr_vertex_t vert;
-    pvr_poly_cxt_t cxt;
-    pvr_poly_hdr_t hdr;
 
-    pvr_poly_cxt_col(&cxt, PVR_LIST_OP_POLY);
-    pvr_poly_compile(&hdr, &cxt);
-    pvr_prim(&hdr, sizeof(hdr));
-
+    /* Vertex 0 */
     vert.flags = PVR_CMD_VERTEX;
-    vert.x = s0.x;
-    vert.y = s0.y;
-    vert.z = s0.z;
-    vert.u = v0->u;
-    vert.v = v0->v;
+    vert.x = sx0;
+    vert.y = sy0;
+    vert.z = sz0;
+    vert.u = 0.0f;
+    vert.v = 0.0f;
     vert.argb = v0->color;
     vert.oargb = 0;
     pvr_prim(&vert, sizeof(vert));
 
-    vert.x = s1.x;
-    vert.y = s1.y;
-    vert.z = s1.z;
-    vert.u = v1->u;
-    vert.v = v1->v;
+    /* Vertex 1 */
+    vert.flags = PVR_CMD_VERTEX;
+    vert.x = sx1;
+    vert.y = sy1;
+    vert.z = sz1;
     vert.argb = v1->color;
     pvr_prim(&vert, sizeof(vert));
 
+    /* Vertex 2 - end of strip */
     vert.flags = PVR_CMD_VERTEX_EOL;
-    vert.x = s2.x;
-    vert.y = s2.y;
-    vert.z = s2.z;
-    vert.u = v2->u;
-    vert.v = v2->v;
+    vert.x = sx2;
+    vert.y = sy2;
+    vert.z = sz2;
     vert.argb = v2->color;
     pvr_prim(&vert, sizeof(vert));
 #endif
@@ -143,13 +176,10 @@ void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
 void render_draw_mesh(mesh_t *mesh, mat4_t transform) {
     if (!mesh || !current_camera) return;
 
-    mat4_t model_view = mat4_multiply(current_camera->view_matrix, transform);
-    mat4_t mvp = mat4_multiply(current_camera->proj_matrix, model_view);
-
     for (int i = 0; i < mesh->tri_count; i++) {
         triangle_t *tri = &mesh->triangles[i];
 
-        /* Transform vertices */
+        /* Transform vertices by model matrix */
         vertex_t v0 = tri->v[0];
         vertex_t v1 = tri->v[1];
         vertex_t v2 = tri->v[2];
@@ -168,28 +198,26 @@ void render_draw_quad(vec3_t pos, float width, float height, uint32_t color) {
     float hw = width * 0.5f;
     float hh = height * 0.5f;
 
+    /* Create quad vertices on XZ plane */
     v0.pos = vec3_create(pos.x - hw, pos.y, pos.z - hh);
     v1.pos = vec3_create(pos.x + hw, pos.y, pos.z - hh);
     v2.pos = vec3_create(pos.x + hw, pos.y, pos.z + hh);
     v3.pos = vec3_create(pos.x - hw, pos.y, pos.z + hh);
 
     v0.color = v1.color = v2.color = v3.color = color;
-    v0.u = 0; v0.v = 0;
-    v1.u = 1; v1.v = 0;
-    v2.u = 1; v2.v = 1;
-    v3.u = 0; v3.v = 1;
 
+    /* Draw as two triangles */
     render_draw_triangle(&v0, &v1, &v2);
     render_draw_triangle(&v0, &v2, &v3);
 }
 
 void render_draw_text(int x, int y, uint32_t color, const char *text) {
 #ifdef DREAMCAST
-    /* Use BIOS font for simple text rendering */
+    /* End current polygon list to draw text */
+    /* Text is drawn directly to framebuffer */
     bfont_set_foreground_color(color);
     bfont_draw_str(vram_s + y * 640 + x, 640, 0, text);
 #else
-    /* Printf for non-DC builds */
     (void)x; (void)y; (void)color;
     printf("%s\n", text);
 #endif
@@ -198,31 +226,24 @@ void render_draw_text(int x, int y, uint32_t color, const char *text) {
 /* Create a simple cube mesh */
 mesh_t *mesh_create_cube(float size, uint32_t color) {
     mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
-    mesh->tri_count = 12;  /* 6 faces * 2 triangles */
+    mesh->tri_count = 12;
     mesh->triangles = (triangle_t *)malloc(sizeof(triangle_t) * mesh->tri_count);
     mesh->base_color = color;
 
     float hs = size * 0.5f;
 
-    /* Cube vertices */
     vec3_t corners[8] = {
         {-hs, -hs, -hs}, {hs, -hs, -hs}, {hs, hs, -hs}, {-hs, hs, -hs},
         {-hs, -hs, hs}, {hs, -hs, hs}, {hs, hs, hs}, {-hs, hs, hs}
     };
 
-    /* Face indices */
     int faces[6][4] = {
-        {0, 1, 2, 3}, /* Front */
-        {5, 4, 7, 6}, /* Back */
-        {4, 0, 3, 7}, /* Left */
-        {1, 5, 6, 2}, /* Right */
-        {3, 2, 6, 7}, /* Top */
-        {4, 5, 1, 0}  /* Bottom */
+        {0, 1, 2, 3}, {5, 4, 7, 6}, {4, 0, 3, 7},
+        {1, 5, 6, 2}, {3, 2, 6, 7}, {4, 5, 1, 0}
     };
 
     int ti = 0;
     for (int f = 0; f < 6; f++) {
-        /* First triangle */
         mesh->triangles[ti].v[0].pos = corners[faces[f][0]];
         mesh->triangles[ti].v[1].pos = corners[faces[f][1]];
         mesh->triangles[ti].v[2].pos = corners[faces[f][2]];
@@ -231,7 +252,6 @@ mesh_t *mesh_create_cube(float size, uint32_t color) {
         mesh->triangles[ti].v[2].color = color;
         ti++;
 
-        /* Second triangle */
         mesh->triangles[ti].v[0].pos = corners[faces[f][0]];
         mesh->triangles[ti].v[1].pos = corners[faces[f][2]];
         mesh->triangles[ti].v[2].pos = corners[faces[f][3]];
@@ -247,98 +267,49 @@ mesh_t *mesh_create_cube(float size, uint32_t color) {
 /* Create N64-style low-poly vehicle mesh */
 mesh_t *mesh_create_vehicle(uint32_t color) {
     mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
-    mesh->tri_count = 20;  /* Simple car shape */
+    mesh->tri_count = 12;  /* Simplified car */
     mesh->triangles = (triangle_t *)malloc(sizeof(triangle_t) * mesh->tri_count);
     mesh->base_color = color;
 
-    /* Car body - boxy N64 style */
-    float body_w = 1.0f;
-    float body_h = 0.5f;
-    float body_l = 2.0f;
+    /* Simple boxy car */
+    float bw = 0.8f;   /* body width */
+    float bh = 0.4f;   /* body height */
+    float bl = 1.5f;   /* body length */
 
-    /* Cabin */
-    float cab_w = 0.8f;
-    float cab_h = 0.4f;
-    float cab_l = 1.0f;
-
-    /* Main body vertices */
     vec3_t body[8] = {
-        {-body_w/2, 0, -body_l/2}, {body_w/2, 0, -body_l/2},
-        {body_w/2, body_h, -body_l/2}, {-body_w/2, body_h, -body_l/2},
-        {-body_w/2, 0, body_l/2}, {body_w/2, 0, body_l/2},
-        {body_w/2, body_h, body_l/2}, {-body_w/2, body_h, body_l/2}
+        {-bw/2, 0, -bl/2}, {bw/2, 0, -bl/2},
+        {bw/2, bh, -bl/2}, {-bw/2, bh, -bl/2},
+        {-bw/2, 0, bl/2}, {bw/2, 0, bl/2},
+        {bw/2, bh, bl/2}, {-bw/2, bh, bl/2}
     };
 
-    /* Cabin vertices */
-    vec3_t cab[8] = {
-        {-cab_w/2, body_h, -cab_l/2}, {cab_w/2, body_h, -cab_l/2},
-        {cab_w/2, body_h + cab_h, -cab_l/2 + 0.2f}, {-cab_w/2, body_h + cab_h, -cab_l/2 + 0.2f},
-        {-cab_w/2, body_h, cab_l/2 - 0.3f}, {cab_w/2, body_h, cab_l/2 - 0.3f},
-        {cab_w/2, body_h + cab_h, cab_l/2 - 0.5f}, {-cab_w/2, body_h + cab_h, cab_l/2 - 0.5f}
+    int faces[6][4] = {
+        {0, 1, 2, 3}, /* front */
+        {5, 4, 7, 6}, /* back */
+        {4, 0, 3, 7}, /* left */
+        {1, 5, 6, 2}, /* right */
+        {3, 2, 6, 7}, /* top */
+        {4, 5, 1, 0}  /* bottom */
     };
-
-    uint32_t body_color = color;
-    uint32_t cab_color = PACK_COLOR(255, 100, 100, 100);
 
     int ti = 0;
-
-    /* Body faces */
-    int body_faces[6][4] = {
-        {0, 1, 2, 3}, {5, 4, 7, 6}, {4, 0, 3, 7},
-        {1, 5, 6, 2}, {3, 2, 6, 7}, {4, 5, 1, 0}
-    };
-
-    for (int f = 0; f < 6; f++) {
-        mesh->triangles[ti].v[0].pos = body[body_faces[f][0]];
-        mesh->triangles[ti].v[1].pos = body[body_faces[f][1]];
-        mesh->triangles[ti].v[2].pos = body[body_faces[f][2]];
-        mesh->triangles[ti].v[0].color = body_color;
-        mesh->triangles[ti].v[1].color = body_color;
-        mesh->triangles[ti].v[2].color = body_color;
+    for (int f = 0; f < 6 && ti < 12; f++) {
+        mesh->triangles[ti].v[0].pos = body[faces[f][0]];
+        mesh->triangles[ti].v[1].pos = body[faces[f][1]];
+        mesh->triangles[ti].v[2].pos = body[faces[f][2]];
+        mesh->triangles[ti].v[0].color = color;
+        mesh->triangles[ti].v[1].color = color;
+        mesh->triangles[ti].v[2].color = color;
         ti++;
 
-        mesh->triangles[ti].v[0].pos = body[body_faces[f][0]];
-        mesh->triangles[ti].v[1].pos = body[body_faces[f][2]];
-        mesh->triangles[ti].v[2].pos = body[body_faces[f][3]];
-        mesh->triangles[ti].v[0].color = body_color;
-        mesh->triangles[ti].v[1].color = body_color;
-        mesh->triangles[ti].v[2].color = body_color;
+        mesh->triangles[ti].v[0].pos = body[faces[f][0]];
+        mesh->triangles[ti].v[1].pos = body[faces[f][2]];
+        mesh->triangles[ti].v[2].pos = body[faces[f][3]];
+        mesh->triangles[ti].v[0].color = color;
+        mesh->triangles[ti].v[1].color = color;
+        mesh->triangles[ti].v[2].color = color;
         ti++;
     }
-
-    /* Cabin top and front */
-    mesh->triangles[ti].v[0].pos = cab[3];
-    mesh->triangles[ti].v[1].pos = cab[2];
-    mesh->triangles[ti].v[2].pos = cab[6];
-    mesh->triangles[ti].v[0].color = cab_color;
-    mesh->triangles[ti].v[1].color = cab_color;
-    mesh->triangles[ti].v[2].color = cab_color;
-    ti++;
-
-    mesh->triangles[ti].v[0].pos = cab[3];
-    mesh->triangles[ti].v[1].pos = cab[6];
-    mesh->triangles[ti].v[2].pos = cab[7];
-    mesh->triangles[ti].v[0].color = cab_color;
-    mesh->triangles[ti].v[1].color = cab_color;
-    mesh->triangles[ti].v[2].color = cab_color;
-    ti++;
-
-    /* Front windshield */
-    mesh->triangles[ti].v[0].pos = cab[0];
-    mesh->triangles[ti].v[1].pos = cab[1];
-    mesh->triangles[ti].v[2].pos = cab[2];
-    mesh->triangles[ti].v[0].color = PACK_COLOR(200, 100, 150, 200);
-    mesh->triangles[ti].v[1].color = PACK_COLOR(200, 100, 150, 200);
-    mesh->triangles[ti].v[2].color = PACK_COLOR(200, 100, 150, 200);
-    ti++;
-
-    mesh->triangles[ti].v[0].pos = cab[0];
-    mesh->triangles[ti].v[1].pos = cab[2];
-    mesh->triangles[ti].v[2].pos = cab[3];
-    mesh->triangles[ti].v[0].color = PACK_COLOR(200, 100, 150, 200);
-    mesh->triangles[ti].v[1].color = PACK_COLOR(200, 100, 150, 200);
-    mesh->triangles[ti].v[2].color = PACK_COLOR(200, 100, 150, 200);
-    ti++;
 
     mesh->tri_count = ti;
     return mesh;
@@ -353,7 +324,7 @@ mesh_t *mesh_create_track_segment(float width, float length, uint32_t color) {
 
     float hw = width * 0.5f;
 
-    /* Simple quad for track surface */
+    /* Two triangles forming a quad on the XZ plane */
     mesh->triangles[0].v[0].pos = vec3_create(-hw, 0, 0);
     mesh->triangles[0].v[1].pos = vec3_create(hw, 0, 0);
     mesh->triangles[0].v[2].pos = vec3_create(hw, 0, length);
