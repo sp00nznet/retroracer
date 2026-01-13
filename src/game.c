@@ -543,14 +543,15 @@ void game_render(void) {
 
             render_end_frame();
 
-            /* Wait for PVR to finish, then render HUD to VRAM */
-            render_wait_vram_ready();
+            /* Render HUD using PVR transparent polygon list */
+            render_begin_hud();
             render_hud();
 
             /* Countdown overlay */
             if (game.state == GAME_STATE_COUNTDOWN) {
                 render_countdown();
             }
+            render_end_hud();
             break;
 
         default:

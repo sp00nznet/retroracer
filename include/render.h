@@ -67,10 +67,15 @@ void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2);
 /* Draw colored quad (for UI/ground) */
 void render_draw_quad(vec3_t pos, float width, float height, uint32_t color);
 
-/* Wait for VRAM to be ready (call before HUD drawing) */
-void render_wait_vram_ready(void);
+/* HUD rendering (uses PVR transparent polygon list) */
+void render_begin_hud(void);    /* Call after render_end_frame() */
+void render_end_hud(void);      /* Call when HUD drawing is done */
+void render_wait_vram_ready(void);  /* Compatibility - no-op */
 
-/* Draw text on screen */
+/* Draw 2D rectangle on screen (must be in HUD mode) */
+void render_draw_rect_2d(int x, int y, int w, int h, uint32_t color);
+
+/* Draw text on screen (must be in HUD mode) */
 void render_draw_text(int x, int y, uint32_t color, const char *text);
 
 /* Create basic meshes */
