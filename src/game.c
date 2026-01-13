@@ -514,8 +514,7 @@ void game_render(void) {
         case GAME_STATE_RESULTS:
             /* Render game in background, then menu overlay */
             render_begin_frame();
-            render_clear(COLOR_GRASS);
-            render_draw_sky_background(COLOR_SKY);
+            render_clear(COLOR_SKY);
             if (game.track) {
                 track_render(game.track, &game.camera);
             }
@@ -532,11 +531,7 @@ void game_render(void) {
         case GAME_STATE_FINISHED:
             /* Render 3D scene */
             render_begin_frame();
-            render_clear(COLOR_GRASS);  /* Grass as background - always visible */
-
-            /* Draw sky as 2D background at minimum depth (behind all 3D geometry) */
-            /* This eliminates Z-fighting with far track segments */
-            render_draw_sky_background(COLOR_SKY);
+            render_clear(COLOR_SKY);  /* Sky as background - above horizon */
 
             if (game.track) {
                 track_render(game.track, &game.camera);
