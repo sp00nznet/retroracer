@@ -196,29 +196,10 @@ void track_render(track_t *track, camera_t *cam) {
 
     render_set_camera(cam);
 
-    /* Render ground plane as a grid of tiles around camera target */
-    /* Use camera target (where we're looking) for better coverage */
-    float tile_size = 60.0f;
-    int grid_range = 3;  /* Tiles in each direction */
-
-    /* Center grid on camera target (where camera looks) for better ground coverage */
-    float center_x = cam->target.x;
-    float center_z = cam->target.z;
-
-    /* Snap to grid to prevent sub-pixel jitter */
-    float base_x = floorf(center_x / tile_size) * tile_size;
-    float base_z = floorf(center_z / tile_size) * tile_size;
-
-    for (int gx = -grid_range; gx <= grid_range; gx++) {
-        for (int gz = -grid_range; gz <= grid_range; gz++) {
-            vec3_t tile_pos = vec3_create(
-                base_x + gx * tile_size,
-                -0.15f,  /* Below track surface */
-                base_z + gz * tile_size
-            );
-            render_draw_quad(tile_pos, tile_size, tile_size, COLOR_GRASS);
-        }
-    }
+    /* Render massive ground plane to cover entire visible area */
+    /* Single large quad centered on camera - simpler and more reliable */
+    vec3_t grass_center = vec3_create(cam->target.x, -0.05f, cam->target.z);
+    render_draw_quad(grass_center, 2000.0f, 2000.0f, COLOR_GRASS);
 
     /* Render each segment */
     for (int i = 0; i < track->segment_count; i++) {
