@@ -24,15 +24,27 @@ static camera_t *current_camera = NULL;
 
 #ifdef DREAMCAST
 static pvr_poly_hdr_t poly_hdr;
+static pvr_poly_hdr_t poly_hdr_tr;  /* Transparent list header for HUD */
 static int poly_hdr_initialized = 0;
+static int in_hud_mode = 0;  /* Track if we're rendering HUD */
 
 static void init_poly_header(void) {
     if (poly_hdr_initialized) return;
 
     pvr_poly_cxt_t cxt;
+
+    /* Opaque polygon header for 3D geometry */
     pvr_poly_cxt_col(&cxt, PVR_LIST_OP_POLY);
     cxt.gen.culling = PVR_CULLING_NONE;
     pvr_poly_compile(&poly_hdr, &cxt);
+
+    /* Transparent polygon header for HUD elements */
+    pvr_poly_cxt_col(&cxt, PVR_LIST_TR_POLY);
+    cxt.gen.culling = PVR_CULLING_NONE;
+    cxt.blend.src = PVR_BLEND_SRCALPHA;
+    cxt.blend.dst = PVR_BLEND_INVSRCALPHA;
+    pvr_poly_compile(&poly_hdr_tr, &cxt);
+
     poly_hdr_initialized = 1;
 }
 #endif
@@ -61,7 +73,25 @@ void render_begin_frame(void) {
 void render_end_frame(void) {
 #ifdef DREAMCAST
     pvr_list_finish();
+    /* Don't finish scene yet - HUD rendering may follow */
+#endif
+}
+
+/* Begin HUD rendering mode - switches to transparent polygon list */
+void render_begin_hud(void) {
+#ifdef DREAMCAST
+    pvr_list_begin(PVR_LIST_TR_POLY);
+    pvr_prim(&poly_hdr_tr, sizeof(poly_hdr_tr));
+    in_hud_mode = 1;
+#endif
+}
+
+/* End HUD rendering and finish the scene */
+void render_end_hud(void) {
+#ifdef DREAMCAST
+    pvr_list_finish();
     pvr_scene_finish();
+    in_hud_mode = 0;
 #endif
 }
 
@@ -328,17 +358,89 @@ void render_draw_quad(vec3_t pos, float width, float height, uint32_t color) {
     render_draw_triangle(&v0, &v2, &v3);
 }
 
-/* Call this before drawing HUD text to ensure PVR is done */
+/* Call this before drawing HUD text - kept for compatibility */
 void render_wait_vram_ready(void) {
+    /* No-op - HUD now uses PVR transparent list */
+}
+
+/* Draw a 2D rectangle on screen (in HUD mode) */
+void render_draw_rect_2d(int x, int y, int w, int h, uint32_t color) {
 #ifdef DREAMCAST
-    pvr_wait_ready();
+    pvr_vertex_t vert;
+
+    float fx = (float)x;
+    float fy = (float)y;
+    float fw = (float)w;
+    float fh = (float)h;
+    float z = 1.0f;  /* Front of screen */
+
+    vert.flags = PVR_CMD_VERTEX;
+    vert.x = fx;
+    vert.y = fy;
+    vert.z = z;
+    vert.u = 0;
+    vert.v = 0;
+    vert.argb = color;
+    vert.oargb = 0;
+    pvr_prim(&vert, sizeof(vert));
+
+    vert.x = fx + fw;
+    vert.y = fy;
+    pvr_prim(&vert, sizeof(vert));
+
+    vert.x = fx;
+    vert.y = fy + fh;
+    pvr_prim(&vert, sizeof(vert));
+
+    vert.flags = PVR_CMD_VERTEX_EOL;
+    vert.x = fx + fw;
+    vert.y = fy + fh;
+    pvr_prim(&vert, sizeof(vert));
+#else
+    (void)x; (void)y; (void)w; (void)h; (void)color;
 #endif
 }
 
+/* Draw text using simple rectangle-based characters (PVR compatible) */
+/* This draws blocky text that works with PVR rendering */
 void render_draw_text(int x, int y, uint32_t color, const char *text) {
 #ifdef DREAMCAST
-    bfont_set_foreground_color(color);
-    bfont_draw_str(vram_s + y * 640 + x, 640, 0, text);
+    int char_width = 12;
+    int char_height = 24;
+    int cx = x;
+
+    while (*text) {
+        char c = *text++;
+
+        if (c == ' ') {
+            cx += char_width;
+            continue;
+        }
+
+        /* Draw a simple filled rectangle for each character */
+        /* This gives us visible text until we implement proper font textures */
+
+        /* Draw character background block */
+        render_draw_rect_2d(cx, y, char_width - 2, char_height, color);
+
+        /* For numbers and some letters, draw a pattern to make them recognizable */
+        if (c >= '0' && c <= '9') {
+            /* Draw number pattern - dark inset */
+            uint32_t dark = 0xFF000000 | ((color & 0x00FEFEFE) >> 1);
+            int n = c - '0';
+
+            /* Simple patterns for digits */
+            if (n == 0) {
+                render_draw_rect_2d(cx + 3, y + 3, char_width - 8, char_height - 6, dark);
+            } else if (n == 1) {
+                render_draw_rect_2d(cx + 1, y + 2, 4, char_height - 4, dark);
+            } else {
+                /* Other numbers - just show solid */
+            }
+        }
+
+        cx += char_width;
+    }
 #else
     (void)x; (void)y; (void)color;
     printf("%s\n", text);
