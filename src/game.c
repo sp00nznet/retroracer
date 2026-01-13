@@ -478,22 +478,28 @@ static void render_hud(void) {
         sprintf(buf, "Race %d of %d", game.grand_prix.current_race + 1, game.grand_prix.total_races);
         render_draw_text(500, 80, COLOR_GRAY, buf);
     }
+
+    /* DEBUG: Show camera and position info */
+    sprintf(buf, "Cam: %.0f,%.0f,%.0f", game.camera.position.x, game.camera.position.y, game.camera.position.z);
+    render_draw_text(20, 420, COLOR_CYAN, buf);
+    sprintf(buf, "Tgt: %.0f,%.0f,%.0f", game.camera.target.x, game.camera.target.y, game.camera.target.z);
+    render_draw_text(20, 440, COLOR_CYAN, buf);
+    if (game.vehicle_count > 0 && game.vehicles[0]) {
+        sprintf(buf, "Car0: %.0f,%.0f,%.0f", game.vehicles[0]->position.x, game.vehicles[0]->position.y, game.vehicles[0]->position.z);
+        render_draw_text(20, 460, COLOR_CYAN, buf);
+    }
 }
 
 static void render_countdown(void) {
     char buf[16];
 
-    /* Show "START" at beginning of countdown */
-    if (game.countdown_timer > 2.5f) {
-        render_draw_text(270, 180, COLOR_WHITE, "START");
-    }
-
-    /* Show countdown numbers */
+    /* Always show "START" during countdown */
     if (game.countdown_value > 0) {
+        render_draw_text(270, 160, COLOR_WHITE, "START");
         sprintf(buf, "%d", game.countdown_value);
         render_draw_text(310, 220, COLOR_YELLOW, buf);
     } else {
-        render_draw_text(295, 220, COLOR_GREEN, "GO!");
+        render_draw_text(295, 200, COLOR_GREEN, "GO!");
     }
 }
 
