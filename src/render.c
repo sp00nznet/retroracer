@@ -156,9 +156,12 @@ static int project_to_screen(vec3_t view_pos, float *sx, float *sy, float *sz) {
     *sy = (1.0f - proj_y) * 0.5f * SCREEN_HEIGHT;
     *sz = inv_z;  /* PVR uses 1/z for depth */
 
+    /* Add small depth bias to push 3D geometry forward, preventing Z-fighting */
+    /* This ensures track always renders in front of sky background (at 0.0005) */
+    *sz += 0.001f;
+
     /* Clamp depth to valid range */
-    /* Use larger minimum to prevent Z-fighting with background at far distances */
-    if (*sz < 0.001f) *sz = 0.001f;
+    if (*sz < 0.002f) *sz = 0.002f;  /* Minimum above sky depth (0.0005) */
     if (*sz > 1.0f) *sz = 1.0f;
 
     return 1;
@@ -368,9 +371,10 @@ void render_draw_sky_background(uint32_t color) {
 #ifdef DREAMCAST
     pvr_vertex_t vert;
 
-    /* Use a very small depth value to ensure sky is always behind 3D geometry */
+    /* Use a small depth value to ensure sky is always behind 3D geometry */
     /* PVR uses 1/z where higher values are closer, so small values are far away */
-    float z = 0.00001f;
+    /* Must be less than track's minimum (0.001) but large enough for PVR precision */
+    float z = 0.0005f;
 
     /* Full screen quad covering the entire viewport */
     vert.flags = PVR_CMD_VERTEX;
