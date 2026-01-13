@@ -49,8 +49,8 @@ void game_init(void) {
     game.camera.aspect = 640.0f / 480.0f;
     game.camera.near_plane = 0.1f;
     game.camera.far_plane = 1000.0f;
-    game.camera_distance = 12.0f;
-    game.camera_height = 5.0f;
+    game.camera_distance = 8.0f;   /* Closer to vehicle */
+    game.camera_height = 3.0f;     /* Lower camera to see more ground */
 
     game.state = GAME_STATE_MENU;
     game.num_laps = 3;
@@ -483,11 +483,17 @@ static void render_hud(void) {
 static void render_countdown(void) {
     char buf[16];
 
+    /* Show "START" at beginning of countdown */
+    if (game.countdown_timer > 2.5f) {
+        render_draw_text(270, 180, COLOR_WHITE, "START");
+    }
+
+    /* Show countdown numbers */
     if (game.countdown_value > 0) {
         sprintf(buf, "%d", game.countdown_value);
-        render_draw_text(310, 200, COLOR_YELLOW, buf);
+        render_draw_text(310, 220, COLOR_YELLOW, buf);
     } else {
-        render_draw_text(280, 200, COLOR_GREEN, "GO!");
+        render_draw_text(295, 220, COLOR_GREEN, "GO!");
     }
 }
 
