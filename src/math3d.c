@@ -178,13 +178,11 @@ mat4_t mat4_look_at(vec3_t eye, vec3_t target, vec3_t up) {
 }
 
 vec3_t mat4_transform_vec3(mat4_t m, vec3_t v) {
-    float w = m.m[3] * v.x + m.m[7] * v.y + m.m[11] * v.z + m.m[15];
-    if (w == 0) w = 1.0f;
-
+    /* Transform point by matrix (no perspective divide - handled by renderer) */
     return vec3_create(
-        (m.m[0] * v.x + m.m[4] * v.y + m.m[8] * v.z + m.m[12]) / w,
-        (m.m[1] * v.x + m.m[5] * v.y + m.m[9] * v.z + m.m[13]) / w,
-        (m.m[2] * v.x + m.m[6] * v.y + m.m[10] * v.z + m.m[14]) / w
+        m.m[0] * v.x + m.m[4] * v.y + m.m[8] * v.z + m.m[12],
+        m.m[1] * v.x + m.m[5] * v.y + m.m[9] * v.z + m.m[13],
+        m.m[2] * v.x + m.m[6] * v.y + m.m[10] * v.z + m.m[14]
     );
 }
 
