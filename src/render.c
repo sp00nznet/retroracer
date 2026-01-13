@@ -363,6 +363,43 @@ void render_wait_vram_ready(void) {
     /* No-op - HUD now uses PVR transparent list */
 }
 
+/* Draw a full-screen sky background at minimum depth (behind all 3D geometry) */
+void render_draw_sky_background(uint32_t color) {
+#ifdef DREAMCAST
+    pvr_vertex_t vert;
+
+    /* Use a very small depth value to ensure sky is always behind 3D geometry */
+    /* PVR uses 1/z where higher values are closer, so small values are far away */
+    float z = 0.00001f;
+
+    /* Full screen quad covering the entire viewport */
+    vert.flags = PVR_CMD_VERTEX;
+    vert.x = 0.0f;
+    vert.y = 0.0f;
+    vert.z = z;
+    vert.u = 0;
+    vert.v = 0;
+    vert.argb = color;
+    vert.oargb = 0;
+    pvr_prim(&vert, sizeof(vert));
+
+    vert.x = 640.0f;
+    vert.y = 0.0f;
+    pvr_prim(&vert, sizeof(vert));
+
+    vert.x = 0.0f;
+    vert.y = 480.0f;
+    pvr_prim(&vert, sizeof(vert));
+
+    vert.flags = PVR_CMD_VERTEX_EOL;
+    vert.x = 640.0f;
+    vert.y = 480.0f;
+    pvr_prim(&vert, sizeof(vert));
+#else
+    (void)color;
+#endif
+}
+
 /* Draw a 2D rectangle on screen (in HUD mode) */
 void render_draw_rect_2d(int x, int y, int w, int h, uint32_t color) {
 #ifdef DREAMCAST

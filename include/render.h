@@ -72,6 +72,9 @@ void render_begin_hud(void);    /* Call after render_end_frame() */
 void render_end_hud(void);      /* Call when HUD drawing is done */
 void render_wait_vram_ready(void);  /* Compatibility - no-op */
 
+/* Draw 2D sky background (call before 3D geometry, in opaque list) */
+void render_draw_sky_background(uint32_t color);
+
 /* Draw 2D rectangle on screen (must be in HUD mode) */
 void render_draw_rect_2d(int x, int y, int w, int h, uint32_t color);
 
@@ -100,5 +103,6 @@ void mesh_destroy(mesh_t *mesh);
 #define COLOR_ORANGE  PACK_COLOR(255, 255, 165, 0)
 #define COLOR_ASPHALT PACK_COLOR(255, 64, 64, 64)
 #define COLOR_GRASS   PACK_COLOR(255, 34, 139, 34)
+#define COLOR_SKY     PACK_COLOR(255, 100, 150, 200)
 
 #endif /* RENDER_H */
