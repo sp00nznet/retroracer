@@ -531,7 +531,7 @@ void game_render(void) {
         case GAME_STATE_FINISHED:
             /* Render 3D scene */
             render_begin_frame();
-            render_clear(PACK_COLOR(255, 100, 150, 200));  /* Sky color */
+            render_clear(COLOR_GRASS);  /* Grass as background - always visible */
 
             if (game.track) {
                 track_render(game.track, &game.camera);
