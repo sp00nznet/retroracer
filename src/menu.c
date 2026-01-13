@@ -4,6 +4,8 @@
  */
 
 #include "menu.h"
+#include "vehicle.h"
+#include "ai.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
