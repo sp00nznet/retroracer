@@ -191,50 +191,14 @@ void track_destroy(track_t *track) {
     free(track);
 }
 
-#define COLOR_SKY PACK_COLOR(255, 100, 150, 200)
-
-/* Render a vertical sky plane facing the camera */
-static void render_sky(camera_t *cam) {
-    /* Calculate direction camera is facing (horizontal only) */
-    vec3_t cam_dir = vec3_sub(cam->target, cam->position);
-    cam_dir.y = 0;
-    cam_dir = vec3_normalize(cam_dir);
-
-    /* Place sky plane far ahead of camera */
-    float sky_distance = 800.0f;
-    vec3_t sky_center = vec3_add(cam->position, vec3_scale(cam_dir, sky_distance));
-    sky_center.y = 100.0f;  /* High up */
-
-    /* Calculate right vector for the sky plane */
-    vec3_t right = vec3_cross(cam_dir, vec3_create(0, 1, 0));
-    right = vec3_normalize(right);
-
-    /* Create 4 corners of the sky plane */
-    float half_width = 1500.0f;
-    float half_height = 300.0f;
-
-    vertex_t v0, v1, v2, v3;
-    v0.pos = vec3_add(sky_center, vec3_add(vec3_scale(right, -half_width), vec3_create(0, half_height, 0)));
-    v1.pos = vec3_add(sky_center, vec3_add(vec3_scale(right, half_width), vec3_create(0, half_height, 0)));
-    v2.pos = vec3_add(sky_center, vec3_add(vec3_scale(right, half_width), vec3_create(0, -half_height, 0)));
-    v3.pos = vec3_add(sky_center, vec3_add(vec3_scale(right, -half_width), vec3_create(0, -half_height, 0)));
-
-    v0.color = v1.color = v2.color = v3.color = COLOR_SKY;
-
-    render_draw_triangle(&v0, &v1, &v2);
-    render_draw_triangle(&v0, &v2, &v3);
-}
-
 void track_render(track_t *track, camera_t *cam) {
     if (!track) return;
 
     render_set_camera(cam);
 
-    /* Grass is now the PVR background color - no quad needed */
-    /* This eliminates Z-fighting and clipping issues */
-
-    /* Render sky plane in the distance */
-    render_sky(cam);
+    /* Grass is the PVR background color set before this call */
+    /* Sky is rendered as 2D background in game.c before track_render() */
+    /* This eliminates Z-fighting between sky and far track segments */
 
     /* Render each segment */
     for (int i = 0; i < track->segment_count; i++) {
