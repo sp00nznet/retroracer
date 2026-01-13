@@ -1,0 +1,21 @@
+# Build artifacts
+*.o
+*.elf
+*.bin
+retroracer
+1ST_READ.BIN
+
+# Disc images
+*.iso
+*.cdi
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

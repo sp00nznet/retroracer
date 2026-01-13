@@ -1,0 +1,30 @@
+# RetroRacer - Native Build Makefile
+# For testing on Linux/Mac without Dreamcast hardware
+#
+# Usage: make -f Makefile.native
+#
+
+TARGET = retroracer
+SRCS = src/main.c src/game.c src/math3d.c src/render.c src/track.c \
+       src/vehicle.c src/ai.c src/menu.c src/input.c src/physics.c
+OBJS = $(SRCS:.c=.o)
+
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -g -I./include -DNATIVE_BUILD
+LDFLAGS = -lm
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	-rm -f $(OBJS) $(TARGET)
+
+run: $(TARGET)
+	./$(TARGET)
+
+.PHONY: all clean run
