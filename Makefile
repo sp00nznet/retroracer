@@ -1,35 +1,89 @@
 # RetroRacer - Dreamcast Racing Game
 # KallistiOS Makefile
+#
+# Build targets:
+#   make          - Build for Dreamcast (requires KOS)
+#   make native   - Build native version for testing (no KOS required)
+#   make clean    - Clean all build artifacts
+#   make cdi      - Create bootable CDI disc image
+#
 
-TARGET = retroracer.elf
-OBJS = src/main.o src/game.o src/math3d.o src/render.o src/track.o \
-       src/vehicle.o src/ai.o src/menu.o src/input.o src/physics.o
+# Source files
+SRCS = src/main.c src/game.c src/math3d.c src/render.c src/track.c \
+       src/vehicle.c src/ai.c src/menu.c src/input.c src/physics.c
 
-# KallistiOS environment
-KOS_CFLAGS += -I./include -DDREAMCAST
-KOS_CPPFLAGS += -I./include -DDREAMCAST
+# Check if KOS is available
+ifdef KOS_BASE
+    # ============================================
+    # Dreamcast build using KallistiOS
+    # ============================================
+    TARGET = retroracer.elf
+    OBJS = $(SRCS:.c=.o)
 
-all: rm-elf $(TARGET)
+    # KallistiOS compiler flags
+    KOS_CFLAGS += -I./include -DDREAMCAST
+    KOS_CPPFLAGS += -I./include -DDREAMCAST
 
-include $(KOS_BASE)/Makefile.rules
+    all: rm-elf $(TARGET)
 
-clean: rm-elf
-	-rm -f $(OBJS)
+    include $(KOS_BASE)/Makefile.rules
 
-rm-elf:
-	-rm -f $(TARGET)
+    $(TARGET): $(OBJS)
+		kos-cc -o $(TARGET) $(OBJS) -lm
 
-$(TARGET): $(OBJS)
-	kos-cc -o $(TARGET) $(OBJS) -lm
+    clean: rm-elf
+		-rm -f $(OBJS)
+		-rm -f retroracer.bin 1ST_READ.BIN retroracer.iso retroracer.cdi
 
-# Create CDI image for burning
-cdi: $(TARGET)
-	$(KOS_OBJCOPY) -R .stack -O binary $(TARGET) retroracer.bin
-	scramble retroracer.bin 1ST_READ.BIN
-	mkisofs -C 0,11702 -V RETRORACER -G $(KOS_BASE)/../IP.BIN -l -o retroracer.iso .
-	cdi4dc retroracer.iso retroracer.cdi
+    rm-elf:
+		-rm -f $(TARGET)
 
-run: $(TARGET)
-	$(KOS_LOADER) $(TARGET)
+    # Create CDI image for burning to disc
+    cdi: $(TARGET)
+		$(KOS_OBJCOPY) -R .stack -O binary $(TARGET) retroracer.bin
+		$(KOS_BASE)/utils/scramble/scramble retroracer.bin 1ST_READ.BIN || scramble retroracer.bin 1ST_READ.BIN
+		mkisofs -C 0,11702 -V RETRORACER -G $(KOS_BASE)/../IP.BIN -l -o retroracer.iso . || \
+		genisoimage -C 0,11702 -V RETRORACER -G $(KOS_BASE)/../IP.BIN -l -o retroracer.iso .
+		cdi4dc retroracer.iso retroracer.cdi || echo "cdi4dc not found - ISO created"
 
-.PHONY: all clean rm-elf cdi run
+    # Run in emulator (if loader configured)
+    run: $(TARGET)
+		$(KOS_LOADER) $(TARGET)
+
+else
+    # ============================================
+    # Native build for testing (no Dreamcast)
+    # ============================================
+    $(info KOS_BASE not set - building native test version)
+    $(info For Dreamcast build: source scripts/env.sh && make)
+    $(info Or use Docker: ./scripts/docker-build.sh)
+
+    TARGET = retroracer
+    OBJS = $(SRCS:.c=.o)
+
+    CC = gcc
+    CFLAGS = -Wall -Wextra -O2 -g -I./include
+    LDFLAGS = -lm
+
+    all: $(TARGET)
+
+    $(TARGET): $(OBJS)
+		$(CC) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+    %.o: %.c
+		$(CC) $(CFLAGS) -c $< -o $@
+
+    clean:
+		-rm -f $(OBJS) $(TARGET)
+		-rm -f retroracer.bin 1ST_READ.BIN retroracer.iso retroracer.cdi
+
+    run: $(TARGET)
+		./$(TARGET)
+
+endif
+
+# Force native build even if KOS is available
+native:
+	$(MAKE) -f Makefile.native
+
+.PHONY: all clean rm-elf cdi run native
