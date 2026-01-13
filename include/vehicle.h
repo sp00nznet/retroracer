@@ -6,6 +6,7 @@
 #ifndef VEHICLE_H
 #define VEHICLE_H
 
+#include <stdint.h>
 #include "math3d.h"
 #include "render.h"
 #include "track.h"

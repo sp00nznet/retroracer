@@ -6,6 +6,7 @@
 #ifndef AI_H
 #define AI_H
 
+#include <stdint.h>
 #include "vehicle.h"
 #include "track.h"
 

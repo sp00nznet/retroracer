@@ -6,6 +6,7 @@
 #ifndef TRACK_H
 #define TRACK_H
 
+#include <stdint.h>
 #include "math3d.h"
 #include "render.h"
 
