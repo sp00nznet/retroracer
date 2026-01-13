@@ -196,14 +196,25 @@ void track_render(track_t *track, camera_t *cam) {
 
     render_set_camera(cam);
 
-    /* Render ground plane centered around camera for infinite grass effect */
-    /* Use smaller tiles to avoid Z-fighting at far distances */
-    vec3_t grass_center = vec3_create(
-        floorf(cam->position.x / 50.0f) * 50.0f,
-        -0.1f,
-        floorf(cam->position.z / 50.0f) * 50.0f
-    );
-    render_draw_quad(grass_center, 150, 150, COLOR_GRASS);
+    /* Render ground plane as a grid of tiles around camera */
+    /* Uses multiple smaller tiles to avoid depth issues */
+    float tile_size = 80.0f;
+    int grid_range = 2;  /* Tiles in each direction */
+
+    /* Grid centered on camera position */
+    float base_x = floorf(cam->position.x / tile_size) * tile_size;
+    float base_z = floorf(cam->position.z / tile_size) * tile_size;
+
+    for (int gx = -grid_range; gx <= grid_range; gx++) {
+        for (int gz = -grid_range; gz <= grid_range; gz++) {
+            vec3_t tile_pos = vec3_create(
+                base_x + gx * tile_size,
+                -0.2f,  /* Below track surface */
+                base_z + gz * tile_size
+            );
+            render_draw_quad(tile_pos, tile_size, tile_size, COLOR_GRASS);
+        }
+    }
 
     /* Render each segment */
     for (int i = 0; i < track->segment_count; i++) {
