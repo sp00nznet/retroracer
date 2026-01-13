@@ -6,6 +6,7 @@
 #ifndef RENDER_H
 #define RENDER_H
 
+#include <stdint.h>
 #include "math3d.h"
 
 /* Vertex with position, normal, UV, and color */
