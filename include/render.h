@@ -67,6 +67,9 @@ void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2);
 /* Draw colored quad (for UI/ground) */
 void render_draw_quad(vec3_t pos, float width, float height, uint32_t color);
 
+/* Wait for VRAM to be ready (call before HUD drawing) */
+void render_wait_vram_ready(void);
+
 /* Draw text on screen */
 void render_draw_text(int x, int y, uint32_t color, const char *text);
 

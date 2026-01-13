@@ -543,7 +543,8 @@ void game_render(void) {
 
             render_end_frame();
 
-            /* Render HUD after PVR completes */
+            /* Wait for PVR to finish, then render HUD to VRAM */
+            render_wait_vram_ready();
             render_hud();
 
             /* Countdown overlay */

@@ -328,6 +328,13 @@ void render_draw_quad(vec3_t pos, float width, float height, uint32_t color) {
     render_draw_triangle(&v0, &v2, &v3);
 }
 
+/* Call this before drawing HUD text to ensure PVR is done */
+void render_wait_vram_ready(void) {
+#ifdef DREAMCAST
+    pvr_wait_ready();
+#endif
+}
+
 void render_draw_text(int x, int y, uint32_t color, const char *text) {
 #ifdef DREAMCAST
     bfont_set_foreground_color(color);
