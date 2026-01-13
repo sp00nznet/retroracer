@@ -191,14 +191,35 @@ void track_destroy(track_t *track) {
     free(track);
 }
 
+/* Render grass ground plane around camera position */
+static void render_grass(camera_t *cam) {
+    /* Large grass quad centered on camera, slightly below track level */
+    /* This ensures grass appears below horizon, sky (background) above */
+    float grass_size = 2000.0f;
+    float grass_y = -0.1f;  /* Below track surface at Y=0 */
+
+    vec3_t center = cam->position;
+    center.y = grass_y;
+
+    vertex_t v0, v1, v2, v3;
+    v0.pos = vec3_create(center.x - grass_size, grass_y, center.z - grass_size);
+    v1.pos = vec3_create(center.x + grass_size, grass_y, center.z - grass_size);
+    v2.pos = vec3_create(center.x + grass_size, grass_y, center.z + grass_size);
+    v3.pos = vec3_create(center.x - grass_size, grass_y, center.z + grass_size);
+
+    v0.color = v1.color = v2.color = v3.color = COLOR_GRASS;
+
+    render_draw_triangle(&v0, &v1, &v2);
+    render_draw_triangle(&v0, &v2, &v3);
+}
+
 void track_render(track_t *track, camera_t *cam) {
     if (!track) return;
 
     render_set_camera(cam);
 
-    /* Grass is the PVR background color set before this call */
-    /* Sky is rendered as 2D background in game.c before track_render() */
-    /* This eliminates Z-fighting between sky and far track segments */
+    /* Render grass ground plane first (below track, above sky background) */
+    render_grass(cam);
 
     /* Render each segment */
     for (int i = 0; i < track->segment_count; i++) {
