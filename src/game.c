@@ -5,6 +5,7 @@
 
 #include "game.h"
 #include "physics.h"
+#include "audio.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -37,6 +38,7 @@ void game_init(void) {
     vehicle_init();
     ai_init();
     physics_init();
+    audio_init();
     menu_init();
 
     /* Setup camera */
@@ -56,6 +58,9 @@ void game_init(void) {
 }
 
 void game_shutdown(void) {
+    /* Clean up audio */
+    audio_shutdown();
+
     /* Clean up track */
     if (game.track) {
         track_destroy(game.track);

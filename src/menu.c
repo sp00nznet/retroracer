@@ -6,6 +6,7 @@
 #include "menu.h"
 #include "vehicle.h"
 #include "ai.h"
+#include "audio.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -25,6 +26,8 @@ static const char *screen_titles[] = {
     "SELECT MODE",
     "SELECT VEHICLE",
     "SELECT DIFFICULTY",
+    "OPTIONS",
+    "SELECT MUSIC",
     "PAUSED",
     "RACE RESULTS",
     "GRAND PRIX STANDINGS"
@@ -87,6 +90,32 @@ static void setup_menu_items(void) {
             menu_state.item_count = 5;
             break;
 
+        case MENU_OPTIONS:
+            menu_state.items[0] = (menu_item_t){"Music Track", 0, 1};
+            menu_state.items[1] = (menu_item_t){"Music Volume", 1, 1};
+            menu_state.items[2] = (menu_item_t){"SFX Volume", 2, 1};
+            menu_state.items[3] = (menu_item_t){"Music: ON", 3, 1};
+            menu_state.items[4] = (menu_item_t){"SFX: ON", 4, 1};
+            menu_state.items[5] = (menu_item_t){"Back", -1, 1};
+            menu_state.item_count = 6;
+            /* Update toggle labels based on current state */
+            {
+                audio_state_t *audio = audio_get_state();
+                menu_state.items[3].text = audio->music_enabled ? "Music: ON" : "Music: OFF";
+                menu_state.items[4].text = audio->sfx_enabled ? "SFX: ON" : "SFX: OFF";
+            }
+            break;
+
+        case MENU_MUSIC_SELECT:
+            /* List all music tracks */
+            for (int i = 0; i < MUSIC_TRACK_COUNT && i < 10; i++) {
+                menu_state.items[i] = (menu_item_t){audio_get_track_name((music_track_t)i), i, 1};
+            }
+            menu_state.item_count = MUSIC_TRACK_COUNT;
+            /* Pre-select current track */
+            menu_state.selected_index = (int)audio_get_state()->current_track;
+            break;
+
         case MENU_PAUSE:
             menu_state.items[0] = (menu_item_t){"Resume", 0, 1};
             menu_state.items[1] = (menu_item_t){"Restart", 1, 1};
@@ -144,6 +173,8 @@ void menu_select(void) {
         case MENU_MAIN:
             if (item->value == 0) {  /* Start Game */
                 menu_set_screen(MENU_MODE_SELECT);
+            } else if (item->value == 1) {  /* Options */
+                menu_set_screen(MENU_OPTIONS);
             } else if (item->value == 2) {  /* Exit */
                 /* Exit game - handled by main loop */
             }
@@ -184,6 +215,30 @@ void menu_select(void) {
                 /* Start the game - handled by game.c */
                 menu_active = 0;
             }
+            break;
+
+        case MENU_OPTIONS:
+            if (item->value == -1) {  /* Back */
+                menu_set_screen(MENU_MAIN);
+            } else if (item->value == 0) {  /* Music Track */
+                menu_set_screen(MENU_MUSIC_SELECT);
+            } else if (item->value == 1) {  /* Music Volume - use L/R to adjust */
+                /* Handled by menu_update for left/right */
+            } else if (item->value == 2) {  /* SFX Volume - use L/R to adjust */
+                /* Handled by menu_update for left/right */
+            } else if (item->value == 3) {  /* Toggle Music */
+                audio_toggle_music();
+                setup_menu_items();  /* Refresh to update label */
+            } else if (item->value == 4) {  /* Toggle SFX */
+                audio_toggle_sfx();
+                setup_menu_items();  /* Refresh to update label */
+            }
+            break;
+
+        case MENU_MUSIC_SELECT:
+            /* Select track and go back to options */
+            audio_play_music((music_track_t)item->value);
+            menu_set_screen(MENU_OPTIONS);
             break;
 
         case MENU_PAUSE:
@@ -235,6 +290,12 @@ void menu_back(void) {
                 menu_set_screen(MENU_VEHICLE_SELECT);
             }
             break;
+        case MENU_OPTIONS:
+            menu_set_screen(MENU_MAIN);
+            break;
+        case MENU_MUSIC_SELECT:
+            menu_set_screen(MENU_OPTIONS);
+            break;
         case MENU_PAUSE:
             menu_active = 0;  /* Resume game */
             break;
@@ -255,12 +316,49 @@ void menu_update(input_state_t *input, float dt) {
     /* Handle input */
     if (input_button_pressed(input, BTN_DPAD_UP)) {
         menu_navigate_up();
+        audio_play_sfx(SFX_MENU_MOVE);
     }
     if (input_button_pressed(input, BTN_DPAD_DOWN)) {
         menu_navigate_down();
+        audio_play_sfx(SFX_MENU_MOVE);
     }
+
+    /* Handle left/right for volume in options menu */
+    if (menu_state.current_screen == MENU_OPTIONS) {
+        audio_state_t *audio = audio_get_state();
+        menu_item_t *item = &menu_state.items[menu_state.selected_index];
+
+        if (input_button_pressed(input, BTN_DPAD_LEFT)) {
+            if (item->value == 1) {  /* Music Volume */
+                audio_set_music_volume(audio->music_volume - 10);
+            } else if (item->value == 2) {  /* SFX Volume */
+                audio_set_sfx_volume(audio->sfx_volume - 10);
+            }
+        }
+        if (input_button_pressed(input, BTN_DPAD_RIGHT)) {
+            if (item->value == 1) {  /* Music Volume */
+                audio_set_music_volume(audio->music_volume + 10);
+            } else if (item->value == 2) {  /* SFX Volume */
+                audio_set_sfx_volume(audio->sfx_volume + 10);
+            }
+        }
+    }
+
+    /* Handle left/right for quick track switching in music select */
+    if (menu_state.current_screen == MENU_MUSIC_SELECT) {
+        if (input_button_pressed(input, BTN_DPAD_LEFT)) {
+            audio_prev_track();
+            menu_state.selected_index = (int)audio_get_state()->current_track;
+        }
+        if (input_button_pressed(input, BTN_DPAD_RIGHT)) {
+            audio_next_track();
+            menu_state.selected_index = (int)audio_get_state()->current_track;
+        }
+    }
+
     if (input_button_pressed(input, BTN_A) || input_button_pressed(input, BTN_START)) {
         menu_select();
+        audio_play_sfx(SFX_MENU_SELECT);
     }
     if (input_button_pressed(input, BTN_B)) {
         menu_back();
@@ -350,6 +448,46 @@ void menu_render(void) {
             case 3: desc = "4-race championship"; break;
         }
         draw_menu_text(center_x - 130, 380, COLOR_GRAY, desc);
+    }
+
+    /* Draw options screen info */
+    if (menu_state.current_screen == MENU_OPTIONS) {
+        audio_state_t *audio = audio_get_state();
+        char buf[64];
+
+        /* Show current track */
+        sprintf(buf, "Current: %s", audio_get_track_name(audio->current_track));
+        draw_menu_text(center_x - 100, 350, COLOR_CYAN, buf);
+
+        /* Show volume bars */
+        sprintf(buf, "Music Vol: %d%%", audio->music_volume);
+        draw_menu_text(center_x + 80, 180 + 30, COLOR_GRAY, buf);
+
+        sprintf(buf, "SFX Vol: %d%%", audio->sfx_volume);
+        draw_menu_text(center_x + 80, 180 + 60, COLOR_GRAY, buf);
+
+        /* Controls hint for volumes */
+        draw_menu_text(center_x - 120, 400, COLOR_GRAY, "L/R to adjust volume");
+    }
+
+    /* Draw music select screen info */
+    if (menu_state.current_screen == MENU_MUSIC_SELECT) {
+        audio_state_t *audio = audio_get_state();
+        music_track_t selected = (music_track_t)menu_state.selected_index;
+        char buf[64];
+
+        /* Show artist */
+        sprintf(buf, "Artist: %s", audio_get_track_artist(selected));
+        draw_menu_text(center_x - 80, 380, COLOR_CYAN, buf);
+
+        /* Show BPM */
+        sprintf(buf, "BPM: %d", audio_get_track_bpm(selected));
+        draw_menu_text(center_x - 40, 410, COLOR_GRAY, buf);
+
+        /* Playing indicator */
+        if (audio->is_playing && audio->current_track == selected) {
+            draw_menu_text(center_x - 40, 350, COLOR_GREEN, "NOW PLAYING");
+        }
     }
 
     /* Draw controls hint */
