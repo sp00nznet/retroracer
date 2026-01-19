@@ -74,6 +74,6 @@ const char *ai_difficulty_name(ai_difficulty_t difficulty);
 vec3_t ai_calculate_racing_line(track_t *track, float distance);
 
 /* Utility: Check if path is clear */
-int ai_path_clear(ai_controller_t *ai, vehicle_t *vehicles[], int count, float distance);
+int ai_path_clear(ai_controller_t *ai, track_t *track, vehicle_t *vehicles[], int count, float distance);
 
 #endif /* AI_H */

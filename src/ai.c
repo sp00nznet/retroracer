@@ -76,9 +76,9 @@ vec3_t ai_calculate_racing_line(track_t *track, float distance) {
     return pos;
 }
 
-int ai_path_clear(ai_controller_t *ai, vehicle_t *vehicles[], int count, float distance) {
+int ai_path_clear(ai_controller_t *ai, track_t *track, vehicle_t *vehicles[], int count, float distance) {
     vec3_t ahead_pos, dir;
-    track_get_position(NULL, distance, &ahead_pos, &dir);  /* TODO: Need track reference */
+    track_get_position(track, distance, &ahead_pos, &dir);
 
     for (int i = 0; i < count; i++) {
         if (vehicles[i] == ai->vehicle) continue;
