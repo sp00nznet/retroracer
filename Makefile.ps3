@@ -1,0 +1,90 @@
+# RetroRacer - PlayStation 3 Build
+# Requires PSL1GHT SDK (github.com/ps3dev/PSL1GHT)
+#
+# Usage: make -f Makefile.ps3
+
+# PSL1GHT environment
+PSL1GHT ?= $(PS3DEV)/psl1ght
+PS3DEV ?= /usr/local/ps3dev
+
+TARGET = retroracer
+BUILD = build_ps3
+
+# Compiler and tools
+CC = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-gcc
+CXX = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-g++
+AS = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-as
+AR = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-ar
+OBJCOPY = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-objcopy
+STRIP = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-strip
+
+FSELF = fself.py
+MAKE_SELF = make_self.py
+SFO = sfo.py
+PKG = pkg.py
+
+# Flags
+CFLAGS = -O2 -Wall -mcpu=cell -DPS3 -DPLAYSTATION3
+CFLAGS += -I./include -I$(PSL1GHT)/ppu/include -I$(PS3DEV)/portlibs/ppu/include
+
+LDFLAGS = -L$(PSL1GHT)/ppu/lib -L$(PS3DEV)/portlibs/ppu/lib
+LIBS = -lrsx -lgcm_sys -lreality -lio -lsysutil -lrt -llv2 -lm
+
+# Source files
+CORE_SRCS = src/game.c src/math3d.c src/track.c src/vehicle.c \
+            src/ai.c src/menu.c src/physics.c
+
+PLATFORM_SRCS = src/platform/ps3/platform_ps3.c \
+                src/platform/ps3/render_ps3.c \
+                src/platform/ps3/input_ps3.c \
+                src/platform/ps3/audio_ps3.c
+
+SRCS = $(CORE_SRCS) $(PLATFORM_SRCS)
+OBJS = $(SRCS:%.c=$(BUILD)/%.o)
+
+# Content ID for PKG
+CONTENTID = UP0001-RETRO001_00-0000000000000001
+APPID = RETRO001
+TITLE = RetroRacer
+
+all: $(TARGET).pkg
+
+$(TARGET).elf: $(OBJS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
+
+$(BUILD)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Create SELF (Signed ELF)
+$(TARGET).self: $(TARGET).elf
+	$(MAKE_SELF) $< $@
+
+# Create FSELF (Fake SELF for CFW)
+$(TARGET).fself: $(TARGET).elf
+	$(FSELF) $< $@
+
+# Create SFO (System File Object)
+PARAM.SFO:
+	$(SFO) --title "$(TITLE)" --appid "$(APPID)" -f $@
+
+# Create PKG (installable package)
+$(TARGET).pkg: $(TARGET).self PARAM.SFO
+	@mkdir -p pkg/USRDIR
+	cp $(TARGET).self pkg/USRDIR/EBOOT.BIN
+	cp PARAM.SFO pkg/
+	@echo "Creating icon placeholder..."
+	@convert -size 320x176 xc:navy pkg/ICON0.PNG 2>/dev/null || touch pkg/ICON0.PNG
+	$(PKG) --contentid $(CONTENTID) pkg/ $@
+
+# Clean
+clean:
+	rm -rf $(BUILD) pkg/
+	rm -f $(TARGET).elf $(TARGET).self $(TARGET).fself $(TARGET).pkg PARAM.SFO
+
+# Run in RPCS3 emulator
+run: $(TARGET).self
+	rpcs3 $(TARGET).self
+
+.PHONY: all clean run

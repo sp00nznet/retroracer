@@ -1,0 +1,73 @@
+# RetroRacer - PlayStation 2 Build
+# Requires PS2SDK (ps2dev.github.io)
+#
+# Usage: make -f Makefile.ps2
+
+# PS2SDK environment
+PS2SDK ?= /usr/local/ps2dev/ps2sdk
+PS2DEV ?= /usr/local/ps2dev
+
+EE_BIN = retroracer.elf
+EE_BIN_PKD = retroracer_packed.elf
+
+# Compiler and flags
+EE_CC = $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-gcc
+EE_AS = $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-as
+EE_LD = $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-ld
+EE_OBJCOPY = $(PS2DEV)/ee/bin/mips64r5900el-ps2-elf-objcopy
+
+EE_CFLAGS = -D_EE -DPS2 -DPLAYSTATION2 -O2 -G0 -Wall
+EE_CFLAGS += -I./include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
+
+EE_LDFLAGS = -L$(PS2SDK)/ee/lib
+EE_LIBS = -ldma -lgraph -ldraw -lpacket -lpad -laudsrv -lkernel -lc
+
+# Source files
+CORE_SRCS = src/game.c src/math3d.c src/track.c src/vehicle.c \
+            src/ai.c src/menu.c src/physics.c
+
+PLATFORM_SRCS = src/platform/ps2/platform_ps2.c \
+                src/platform/ps2/render_ps2.c \
+                src/platform/ps2/input_ps2.c \
+                src/platform/ps2/audio_ps2.c
+
+EE_SRCS = $(CORE_SRCS) $(PLATFORM_SRCS)
+EE_OBJS = $(EE_SRCS:.c=.o)
+
+# IOP modules to embed
+IRX_FILES = $(PS2SDK)/iop/irx/sio2man.irx \
+            $(PS2SDK)/iop/irx/padman.irx \
+            $(PS2SDK)/iop/irx/mcman.irx \
+            $(PS2SDK)/iop/irx/mcserv.irx \
+            $(PS2SDK)/iop/irx/audsrv.irx
+
+all: $(EE_BIN)
+
+$(EE_BIN): $(EE_OBJS)
+	$(EE_CC) $(EE_CFLAGS) -T$(PS2SDK)/ee/startup/linkfile -o $@ $(EE_OBJS) $(EE_LDFLAGS) $(EE_LIBS)
+
+%.o: %.c
+	$(EE_CC) $(EE_CFLAGS) -c $< -o $@
+
+# Create packed ELF (smaller, for memory card)
+pack: $(EE_BIN)
+	ps2-packer $(EE_BIN) $(EE_BIN_PKD)
+
+# Create ISO image
+iso: $(EE_BIN)
+	mkisofs -o retroracer.iso -V RETRORACER \
+		-sysid "PLAYSTATION2" \
+		$(EE_BIN) SYSTEM.CNF
+
+# Clean
+clean:
+	rm -f $(EE_OBJS) $(EE_BIN) $(EE_BIN_PKD) retroracer.iso
+
+# Run in PCSX2 emulator
+run: $(EE_BIN)
+	pcsx2 $(EE_BIN)
+
+.PHONY: all pack iso clean run
+
+# Include PS2SDK rules
+include $(PS2SDK)/Defs.make

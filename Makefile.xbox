@@ -1,0 +1,69 @@
+# RetroRacer - Original Xbox Build
+# Requires nxdk (github.com/XboxDev/nxdk) or OpenXDK
+#
+# Usage: make -f Makefile.xbox
+
+# nxdk environment
+NXDK_DIR ?= $(HOME)/nxdk
+
+TARGET = retroracer
+XBE_TITLE = "RetroRacer"
+
+# Include nxdk environment
+include $(NXDK_DIR)/lib/Makefile
+
+# Compiler and flags
+CC = $(NXDK_DIR)/bin/i686-pc-xbox-gcc
+CXX = $(NXDK_DIR)/bin/i686-pc-xbox-g++
+LD = $(NXDK_DIR)/bin/i686-pc-xbox-ld
+OBJCOPY = $(NXDK_DIR)/bin/i686-pc-xbox-objcopy
+
+CFLAGS = -O2 -Wall -DXBOX -D_XBOX
+CFLAGS += -I./include -I$(NXDK_DIR)/lib -I$(NXDK_DIR)/lib/hal -I$(NXDK_DIR)/lib/pbkit
+
+LDFLAGS = -L$(NXDK_DIR)/lib
+
+# nxdk libraries
+LIBS = -lhal -lpbkit -lxboxkrnl -lc -lm
+
+# Source files
+CORE_SRCS = src/game.c src/math3d.c src/track.c src/vehicle.c \
+            src/ai.c src/menu.c src/physics.c
+
+PLATFORM_SRCS = src/platform/xbox/platform_xbox.c \
+                src/platform/xbox/render_xbox.c \
+                src/platform/xbox/input_xbox.c \
+                src/platform/xbox/audio_xbox.c
+
+SRCS = $(CORE_SRCS) $(PLATFORM_SRCS)
+OBJS = $(SRCS:.c=.obj)
+
+all: $(TARGET).xbe
+
+# Link into Xbox executable
+$(TARGET).exe: $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LIBS) -Wl,--file-alignment,0x20 -Wl,--section-alignment,0x20
+
+# Convert to XBE format
+$(TARGET).xbe: $(TARGET).exe
+	$(NXDK_DIR)/tools/cxbe/cxbe -OUT:$@ -TITLE:$(XBE_TITLE) $<
+
+%.obj: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Create ISO for burning/emulation
+iso: $(TARGET).xbe
+	@mkdir -p iso_root
+	cp $(TARGET).xbe iso_root/default.xbe
+	xdvdfs pack iso_root/ $(TARGET).iso
+
+# Clean
+clean:
+	rm -f $(OBJS) $(TARGET).exe $(TARGET).xbe $(TARGET).iso
+	rm -rf iso_root/
+
+# Run in xemu emulator
+run: $(TARGET).iso
+	xemu -dvd_path $(TARGET).iso
+
+.PHONY: all iso clean run

@@ -1,0 +1,65 @@
+# RetroRacer - PlayStation 1 (PSX) Build
+# Requires PsyQ SDK or PSn00bSDK
+#
+# Usage: make -f Makefile.psx
+
+TARGET = retroracer
+REGION = SLUS_000.00
+
+# PsyQ SDK paths (adjust as needed)
+PSYQ_PATH ?= /opt/psyq
+CC = $(PSYQ_PATH)/bin/ccpsx
+LD = $(PSYQ_PATH)/bin/psylink
+AS = $(PSYQ_PATH)/bin/aspsx
+
+# Alternatively, use PSn00bSDK (open source)
+# PSNOOB_PATH ?= /opt/psn00bsdk
+# CC = $(PSNOOB_PATH)/bin/mipsel-none-elf-gcc
+
+CFLAGS = -O2 -G0 -Wall -DPSX -DPLAYSTATION1
+CFLAGS += -I./include -I$(PSYQ_PATH)/include
+
+LDFLAGS = -l$(PSYQ_PATH)/lib
+
+# Source files
+CORE_SRCS = src/game.c src/math3d.c src/track.c src/vehicle.c \
+            src/ai.c src/menu.c src/physics.c
+
+PLATFORM_SRCS = src/platform/psx/platform_psx.c \
+                src/platform/psx/render_psx.c \
+                src/platform/psx/input_psx.c \
+                src/platform/psx/audio_psx.c
+
+SRCS = $(CORE_SRCS) $(PLATFORM_SRCS)
+OBJS = $(SRCS:.c=.obj)
+
+# Libraries
+LIBS = -lapi -letc -lgte -lgpu -lgs -lspu -lsnd -lpad -lcd
+
+all: $(TARGET).exe $(TARGET).cue
+
+$(TARGET).exe: $(OBJS)
+	$(LD) -o $@ $(OBJS) $(LDFLAGS) $(LIBS)
+
+%.obj: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Create CD image
+$(TARGET).cue: $(TARGET).exe
+	@echo "Creating PSX CD image..."
+	mkpsxiso -o $(TARGET).bin -c $(TARGET).cue \
+		-lba $(TARGET).exe $(REGION) \
+		system.cnf
+
+# Clean
+clean:
+	rm -f $(OBJS) $(TARGET).exe $(TARGET).bin $(TARGET).cue
+
+# System.cnf for boot
+system.cnf:
+	@echo "BOOT=cdrom:\\$(TARGET).EXE;1" > system.cnf
+	@echo "TCB=4" >> system.cnf
+	@echo "EVENT=10" >> system.cnf
+	@echo "STACK=801FFFF0" >> system.cnf
+
+.PHONY: all clean system.cnf
