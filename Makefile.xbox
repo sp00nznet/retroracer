@@ -1,0 +1,141 @@
+#
+# RetroRacer - Original Xbox Build Configuration
+#
+# Requires: NXDK (Open Source) or OpenXDK
+# Target: Microsoft Xbox (2001)
+#
+
+# SDK Configuration
+NXDK_DIR ?= /opt/nxdk
+XBE2EXE  ?= $(NXDK_DIR)/tools/xbe2exe
+
+# Compiler (NXDK uses LLVM/Clang)
+CC      = $(NXDK_DIR)/bin/clang
+CXX     = $(NXDK_DIR)/bin/clang++
+AS      = $(NXDK_DIR)/bin/llvm-as
+LD      = $(NXDK_DIR)/bin/lld
+AR      = $(NXDK_DIR)/bin/llvm-ar
+
+# XBE Tools
+CXBE    = $(NXDK_DIR)/tools/cxbe
+XBE2ISO = $(NXDK_DIR)/tools/xbe2iso
+
+# Project Configuration
+TARGET  = retroracer
+BUILD   = build/xbox
+TITLE   = "RetroRacer"
+TITLEID = RR-001
+
+# Source Files
+SOURCES = src/main.c \
+          src/game.c \
+          src/menu.c \
+          src/track.c \
+          src/vehicle.c \
+          src/ai.c \
+          src/physics.c \
+          src/math3d.c \
+          src/audio.c \
+          src/platform/platform_xbox.c \
+          src/platform/platform_input_adapter.c \
+          src/platform/platform_render_adapter.c
+
+OBJECTS = $(SOURCES:src/%.c=$(BUILD)/%.o)
+
+# Compiler Flags
+CFLAGS  = -DXBOX -D_XBOX \
+          -target i386-pc-win32 -march=pentium3 \
+          -ffreestanding -nostdlib -fno-builtin \
+          -O2 -Wall -Wextra \
+          -I./include \
+          -I$(NXDK_DIR)/lib/xboxrt/include \
+          -I$(NXDK_DIR)/lib/pbkit/include \
+          -I$(NXDK_DIR)/lib/xgu/include \
+          -I$(NXDK_DIR)/lib/hal/include \
+          -I$(NXDK_DIR)/lib/winapi
+
+# Linker Flags
+LDFLAGS = -L$(NXDK_DIR)/lib \
+          -lpbkit -lhal -lxboxrt -lxgu \
+          -lSDL -lxinput -ldsound
+
+# Output
+EXE     = $(BUILD)/$(TARGET).exe
+XBE     = $(BUILD)/$(TARGET).xbe
+ISO     = $(BUILD)/$(TARGET).iso
+
+#------------------------------------------------------------------------------
+# Build Rules
+#------------------------------------------------------------------------------
+
+.PHONY: all clean xbe iso run
+
+all: $(XBE)
+
+# Create XBE from EXE
+$(XBE): $(EXE)
+	@echo "  CXBE    $@"
+	@$(CXBE) -TITLE:$(TITLE) -TITLEID:$(TITLEID) -OUT:$@ $<
+	@echo "  Built Xbox executable: $@"
+
+# Create EXE from objects
+$(EXE): $(OBJECTS) | $(BUILD)
+	@echo "  LD      $@"
+	@$(LD) -subsystem:windows -entry:XboxMain \
+		-out:$@ $(OBJECTS) $(LDFLAGS)
+
+# Compile C sources
+$(BUILD)/%.o: src/%.c | $(BUILD)/platform
+	@echo "  CC      $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# Create directories
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(BUILD)/platform:
+	@mkdir -p $(BUILD)/platform
+
+# Create ISO for DVD/xISO
+iso: $(ISO)
+
+$(ISO): $(XBE)
+	@echo "  ISO     $@"
+	@mkdir -p $(BUILD)/iso
+	@cp $(XBE) $(BUILD)/iso/default.xbe
+	@genisoimage -udf -o $(ISO) $(BUILD)/iso 2>/dev/null || \
+	 $(XBE2ISO) -ISO $(ISO) $(BUILD)/iso 2>/dev/null || \
+	 echo "ISO tools not found"
+	@echo "  Xbox disc image ready: $(ISO)"
+
+# Run in emulator
+run: $(XBE)
+	@echo "Running in Xemu emulator..."
+	@xemu -dvd_path $(ISO) 2>/dev/null || \
+	 cxbx-reloaded $(XBE) 2>/dev/null || \
+	 echo "No Xbox emulator found. Install Xemu or Cxbx-Reloaded."
+
+# Clean build
+clean:
+	@echo "  CLEAN   $(BUILD)"
+	@rm -rf $(BUILD)
+
+# Print info
+info:
+	@echo "RetroRacer - Xbox Build"
+	@echo "======================="
+	@echo "SDK:        $(NXDK_DIR)"
+	@echo "Compiler:   $(CC)"
+	@echo "Output:     $(XBE)"
+	@echo ""
+	@echo "Xbox Hardware Specs:"
+	@echo "  CPU:      733 MHz Intel Pentium III (Coppermine)"
+	@echo "  RAM:      64MB DDR SDRAM (unified)"
+	@echo "  GPU:      NV2A (Custom GeForce 3), 233 MHz"
+	@echo "  Audio:    APU with 64 3D voices"
+	@echo "  Media:    DVD-ROM, 8GB HDD"
+
+# Alternative: Build with OpenXDK
+openxdk:
+	@echo "Building with OpenXDK..."
+	$(MAKE) -f Makefile.xbox NXDK_DIR=/opt/openxdk

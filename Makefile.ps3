@@ -1,0 +1,144 @@
+#
+# RetroRacer - PlayStation 3 Build Configuration
+#
+# Requires: PSL1GHT SDK (Open Source)
+# Target: Sony PlayStation 3 (2006)
+#
+
+# SDK Configuration
+PSL1GHT   ?= /opt/ps3dev
+PS3DEV    ?= /opt/ps3dev
+PORTLIBS  ?= $(PS3DEV)/portlibs/ppu
+
+# Compiler
+PPU_CC      = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-gcc
+PPU_CXX     = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-g++
+PPU_AS      = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-as
+PPU_AR      = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-ar
+PPU_OBJCOPY = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-objcopy
+PPU_STRIP   = $(PS3DEV)/ppu/bin/powerpc64-ps3-elf-strip
+
+# Tools
+FSELF      = $(PSL1GHT)/bin/fself
+PKG        = $(PSL1GHT)/bin/pkg
+NPDRM      = $(PSL1GHT)/bin/make_self_npdrm
+SFO        = $(PSL1GHT)/bin/sfo
+
+# Project Configuration
+TARGET  = retroracer
+BUILD   = build/ps3
+CONTENT_ID = UP0001-RETRORCE-0000000000000000
+TITLE   = RetroRacer
+
+# Source Files
+SOURCES = src/main.c \
+          src/game.c \
+          src/menu.c \
+          src/track.c \
+          src/vehicle.c \
+          src/ai.c \
+          src/physics.c \
+          src/math3d.c \
+          src/audio.c \
+          src/platform/platform_ps3.c \
+          src/platform/platform_input_adapter.c \
+          src/platform/platform_render_adapter.c
+
+OBJECTS = $(SOURCES:src/%.c=$(BUILD)/%.o)
+
+# Compiler Flags
+PPU_CFLAGS = -DPS3 -D__CELLOS_LV2__ \
+             -mcpu=cell -maltivec -mno-toc \
+             -O2 -Wall -Wextra \
+             -I./include \
+             -I$(PSL1GHT)/ppu/include \
+             -I$(PORTLIBS)/include
+
+# Linker Flags
+PPU_LDFLAGS = -L$(PSL1GHT)/ppu/lib \
+              -L$(PORTLIBS)/lib \
+              -lrsx -lgcm_sys -lsysutil -lio -laudio \
+              -lrt -llv2 -lm
+
+# Output
+ELF     = $(BUILD)/$(TARGET).elf
+SELF    = $(BUILD)/$(TARGET).self
+PKG_OUT = $(BUILD)/$(TARGET).pkg
+
+#------------------------------------------------------------------------------
+# Build Rules
+#------------------------------------------------------------------------------
+
+.PHONY: all clean pkg run
+
+all: $(SELF)
+
+# Create SELF from ELF
+$(SELF): $(ELF)
+	@echo "  FSELF   $@"
+	@$(FSELF) $< $@
+	@echo "  Built PlayStation 3 executable: $@"
+
+# Create ELF from objects
+$(ELF): $(OBJECTS) | $(BUILD)
+	@echo "  LD      $@"
+	@$(PPU_CC) -o $@ $(OBJECTS) $(PPU_LDFLAGS)
+	@echo "  ELF size: $$(stat -f %z $@ 2>/dev/null || stat -c %s $@) bytes"
+
+# Compile C sources
+$(BUILD)/%.o: src/%.c | $(BUILD)/platform
+	@echo "  CC      $<"
+	@$(PPU_CC) $(PPU_CFLAGS) -c $< -o $@
+
+# Create directories
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(BUILD)/platform:
+	@mkdir -p $(BUILD)/platform
+
+# Create PKG for installation
+pkg: $(PKG_OUT)
+
+$(PKG_OUT): $(SELF)
+	@echo "  PKG     $@"
+	@mkdir -p $(BUILD)/pkg/USRDIR
+	@cp $(SELF) $(BUILD)/pkg/USRDIR/EBOOT.BIN
+	@$(SFO) --title "$(TITLE)" \
+		--appid "RETRORACR" \
+		-f $(BUILD)/pkg/PARAM.SFO
+	@echo "  Creating PKG..."
+	@$(PKG) --contentid $(CONTENT_ID) \
+		$(BUILD)/pkg/ $@ 2>/dev/null || \
+	echo "PKG tools not available, SELF file is ready for testing"
+
+# Run in emulator
+run: $(SELF)
+	@echo "Running in RPCS3 emulator..."
+	@rpcs3 $(SELF) 2>/dev/null || \
+	 echo "RPCS3 not found. Install RPCS3 emulator."
+
+# Clean build
+clean:
+	@echo "  CLEAN   $(BUILD)"
+	@rm -rf $(BUILD)
+
+# SPU compilation support (for Cell SPE programs)
+spu:
+	@echo "SPU shader compilation not implemented in this template"
+
+# Print info
+info:
+	@echo "RetroRacer - PS3 Build"
+	@echo "======================"
+	@echo "SDK:        $(PSL1GHT)"
+	@echo "Compiler:   $(PPU_CC)"
+	@echo "Output:     $(SELF)"
+	@echo ""
+	@echo "PS3 Hardware Specs:"
+	@echo "  CPU:      3.2 GHz Cell Broadband Engine"
+	@echo "            (1 PPE + 6 SPEs available)"
+	@echo "  RAM:      256MB XDR + 256MB GDDR3"
+	@echo "  GPU:      RSX Reality Synthesizer (NVidia G70)"
+	@echo "  Audio:    Multi-channel audio processor"
+	@echo "  Media:    Blu-ray Disc, HDD"

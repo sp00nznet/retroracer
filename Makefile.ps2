@@ -1,0 +1,140 @@
+#
+# RetroRacer - PlayStation 2 Build Configuration
+#
+# Requires: PS2SDK (Open Source)
+# Target: Sony PlayStation 2 (2000)
+#
+
+# SDK Configuration
+PS2SDK  ?= /usr/local/ps2dev/ps2sdk
+PS2DEV  ?= /usr/local/ps2dev
+EE_PATH  = $(PS2DEV)/ee
+
+# Compiler
+EE_CC      = $(EE_PATH)/bin/mips64r5900el-ps2-elf-gcc
+EE_AS      = $(EE_PATH)/bin/mips64r5900el-ps2-elf-as
+EE_LD      = $(EE_PATH)/bin/mips64r5900el-ps2-elf-ld
+EE_OBJCOPY = $(EE_PATH)/bin/mips64r5900el-ps2-elf-objcopy
+EE_STRIP   = $(EE_PATH)/bin/mips64r5900el-ps2-elf-strip
+
+# Project Configuration
+TARGET  = retroracer
+BUILD   = build/ps2
+
+# Source Files
+SOURCES = src/main.c \
+          src/game.c \
+          src/menu.c \
+          src/track.c \
+          src/vehicle.c \
+          src/ai.c \
+          src/physics.c \
+          src/math3d.c \
+          src/audio.c \
+          src/platform/platform_ps2.c \
+          src/platform/platform_input_adapter.c \
+          src/platform/platform_render_adapter.c
+
+OBJECTS = $(SOURCES:src/%.c=$(BUILD)/%.o)
+
+# Compiler Flags
+EE_CFLAGS = -DPS2 -D_EE -D__PS2__ \
+            -G0 -O2 -Wall -Wextra \
+            -I./include \
+            -I$(PS2SDK)/ee/include \
+            -I$(PS2SDK)/common/include
+
+# Linker Flags
+EE_LDFLAGS = -L$(PS2SDK)/ee/lib \
+             -lpatches -ldma -lgraph -ldraw -lpacket \
+             -lpad -lmc -laudsrv \
+             -lc -lkernel -lmf
+
+# Output
+ELF     = $(BUILD)/$(TARGET).elf
+ISO     = $(BUILD)/$(TARGET).iso
+
+# IOP Modules to embed
+IOP_MODULES = $(PS2SDK)/iop/irx/sio2man.irx \
+              $(PS2SDK)/iop/irx/mcman.irx \
+              $(PS2SDK)/iop/irx/mcserv.irx \
+              $(PS2SDK)/iop/irx/padman.irx \
+              $(PS2SDK)/iop/irx/libsd.irx \
+              $(PS2SDK)/iop/irx/audsrv.irx
+
+#------------------------------------------------------------------------------
+# Build Rules
+#------------------------------------------------------------------------------
+
+.PHONY: all clean iso run
+
+all: $(ELF)
+
+# Create ELF from objects
+$(ELF): $(OBJECTS) | $(BUILD)
+	@echo "  LD      $@"
+	@$(EE_CC) -T$(PS2SDK)/ee/startup/linkfile -o $@ \
+		$(PS2SDK)/ee/startup/crt0.o $(OBJECTS) $(EE_LDFLAGS)
+	@$(EE_STRIP) $@
+	@echo "  Built PlayStation 2 executable: $@"
+	@ls -la $@
+
+# Compile C sources
+$(BUILD)/%.o: src/%.c | $(BUILD)/platform
+	@echo "  CC      $<"
+	@$(EE_CC) $(EE_CFLAGS) -c $< -o $@
+
+# Create directories
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(BUILD)/platform:
+	@mkdir -p $(BUILD)/platform
+
+# Create ISO image for OPL/ESR
+iso: $(ISO)
+
+$(ISO): $(ELF)
+	@echo "  MKISO   $@"
+	@mkdir -p $(BUILD)/cd
+	@cp $(ELF) $(BUILD)/cd/SLUS_999.99
+	@echo "BOOT2 = cdrom0:\SLUS_999.99;1" > $(BUILD)/cd/SYSTEM.CNF
+	@echo "VER = 1.00" >> $(BUILD)/cd/SYSTEM.CNF
+	@echo "VMODE = NTSC" >> $(BUILD)/cd/SYSTEM.CNF
+	@genisoimage -sysid "PLAYSTATION" \
+		-V "RETRORACER" \
+		-o $(ISO) \
+		$(BUILD)/cd 2>/dev/null || \
+	mkisofs -sysid "PLAYSTATION" \
+		-V "RETRORACER" \
+		-o $(ISO) \
+		$(BUILD)/cd 2>/dev/null || \
+	echo "ISO tools not found, skipping ISO creation"
+	@echo "  PS2 disc image ready: $(ISO)"
+
+# Run in emulator
+run: $(ELF)
+	@echo "Running in PCSX2 emulator..."
+	@pcsx2 --elf=$(ELF) 2>/dev/null || \
+	 pcsx2-qt --elf=$(ELF) 2>/dev/null || \
+	 echo "PCSX2 not found. Install PCSX2 emulator."
+
+# Clean build
+clean:
+	@echo "  CLEAN   $(BUILD)"
+	@rm -rf $(BUILD)
+
+# Print info
+info:
+	@echo "RetroRacer - PS2 Build"
+	@echo "======================"
+	@echo "SDK:        $(PS2SDK)"
+	@echo "Compiler:   $(EE_CC)"
+	@echo "Output:     $(ELF)"
+	@echo ""
+	@echo "PS2 Hardware Specs:"
+	@echo "  CPU:      294.912 MHz Emotion Engine (MIPS R5900)"
+	@echo "  RAM:      32MB Main + 4MB Video"
+	@echo "  GPU:      Graphics Synthesizer (~75M polys/sec)"
+	@echo "  Audio:    SPU2 48 voices, 2MB sound RAM"
+	@echo "  Media:    DVD-ROM"

@@ -1,0 +1,137 @@
+#
+# RetroRacer - PlayStation 1 (PSX) Build Configuration
+#
+# Requires: PSn00bSDK or PsyQ SDK
+# Target: Sony PlayStation (1994)
+#
+
+# SDK Configuration
+PSN00BSDK ?= /opt/psn00bsdk
+PSYQ_PATH ?= /opt/psyq
+
+# Use PSn00bSDK by default (open source)
+CC      = $(PSN00BSDK)/bin/mipsel-none-elf-gcc
+AS      = $(PSN00BSDK)/bin/mipsel-none-elf-as
+LD      = $(PSN00BSDK)/bin/mipsel-none-elf-ld
+OBJCOPY = $(PSN00BSDK)/bin/mipsel-none-elf-objcopy
+
+# Project Configuration
+TARGET  = retroracer
+BUILD   = build/psx
+
+# Source Files
+SOURCES = src/main.c \
+          src/game.c \
+          src/menu.c \
+          src/track.c \
+          src/vehicle.c \
+          src/ai.c \
+          src/physics.c \
+          src/math3d.c \
+          src/audio.c \
+          src/platform/platform_psx.c \
+          src/platform/platform_input_adapter.c \
+          src/platform/platform_render_adapter.c
+
+OBJECTS = $(SOURCES:src/%.c=$(BUILD)/%.o)
+
+# Compiler Flags
+CFLAGS  = -DPSX -D__PSX__ \
+          -march=r3000 -mabi=32 -msoft-float \
+          -O2 -Wall -Wextra \
+          -I./include \
+          -I$(PSN00BSDK)/include \
+          -I$(PSN00BSDK)/include/psn00b
+
+# Linker Flags
+LDFLAGS = -T$(PSN00BSDK)/lib/ldscripts/exe.ld \
+          -L$(PSN00BSDK)/lib \
+          -lpsn00bsdk -lc -lgcc
+
+# Output formats
+EXE     = $(BUILD)/$(TARGET).exe
+ISO     = $(BUILD)/$(TARGET).iso
+BIN     = $(BUILD)/$(TARGET).bin
+CUE     = $(BUILD)/$(TARGET).cue
+
+# Tools
+MKPSXISO = mkpsxiso
+LZPACK   = lzpack
+
+#------------------------------------------------------------------------------
+# Build Rules
+#------------------------------------------------------------------------------
+
+.PHONY: all clean iso run
+
+all: $(EXE)
+
+# Create EXE from objects
+$(EXE): $(OBJECTS) | $(BUILD)
+	@echo "  LD      $@"
+	@$(LD) -o $@ $(OBJECTS) $(LDFLAGS)
+	@echo "  Built PlayStation executable: $@"
+
+# Compile C sources
+$(BUILD)/%.o: src/%.c | $(BUILD)/platform
+	@echo "  CC      $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# Create directories
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(BUILD)/platform:
+	@mkdir -p $(BUILD)/platform
+
+# Create ISO image
+iso: $(ISO)
+
+$(ISO): $(EXE)
+	@echo "  MKISO   $@"
+	@echo "Creating PSX disc image..."
+	@mkdir -p $(BUILD)/cd
+	@cp $(EXE) $(BUILD)/cd/SLUS_999.99
+	@echo '<?xml version="1.0" encoding="UTF-8"?>' > $(BUILD)/iso.xml
+	@echo '<iso_project image_name="$(TARGET).bin" cue_sheet="$(TARGET).cue">' >> $(BUILD)/iso.xml
+	@echo '  <track type="data">' >> $(BUILD)/iso.xml
+	@echo '    <identifiers system="PLAYSTATION" application="RETRORACER"/>' >> $(BUILD)/iso.xml
+	@echo '    <license file="$(PSN00BSDK)/share/licenses/licensea.dat"/>' >> $(BUILD)/iso.xml
+	@echo '    <directory_tree>' >> $(BUILD)/iso.xml
+	@echo '      <file name="SLUS_999.99" source="$(BUILD)/cd/SLUS_999.99"/>' >> $(BUILD)/iso.xml
+	@echo '      <file name="SYSTEM.CNF" source="$(BUILD)/cd/SYSTEM.CNF"/>' >> $(BUILD)/iso.xml
+	@echo '    </directory_tree>' >> $(BUILD)/iso.xml
+	@echo '  </track>' >> $(BUILD)/iso.xml
+	@echo '</iso_project>' >> $(BUILD)/iso.xml
+	@echo 'BOOT=cdrom:\SLUS_999.99;1' > $(BUILD)/cd/SYSTEM.CNF
+	@echo 'TCB=4' >> $(BUILD)/cd/SYSTEM.CNF
+	@echo 'EVENT=10' >> $(BUILD)/cd/SYSTEM.CNF
+	@$(MKPSXISO) -o $(BIN) -c $(CUE) $(BUILD)/iso.xml 2>/dev/null || echo "ISO tools not found, skipping ISO creation"
+	@echo "  PSX disc image ready: $(BIN) / $(CUE)"
+
+# Run in emulator
+run: $(EXE)
+	@echo "Running in DuckStation emulator..."
+	@duckstation -exe $(EXE) 2>/dev/null || \
+	 mednafen -psx.bios_na /path/to/scph5501.bin $(EXE) 2>/dev/null || \
+	 echo "No PSX emulator found. Install DuckStation or Mednafen."
+
+# Clean build
+clean:
+	@echo "  CLEAN   $(BUILD)"
+	@rm -rf $(BUILD)
+
+# Print info
+info:
+	@echo "RetroRacer - PSX Build"
+	@echo "======================"
+	@echo "SDK:        $(PSN00BSDK)"
+	@echo "Compiler:   $(CC)"
+	@echo "Output:     $(EXE)"
+	@echo ""
+	@echo "PSX Hardware Specs:"
+	@echo "  CPU:      33.8688 MHz MIPS R3000A"
+	@echo "  RAM:      2MB Main + 1MB VRAM"
+	@echo "  GPU:      Custom (180K polygons/sec)"
+	@echo "  Audio:    SPU 24 voices"
+	@echo "  Media:    CD-ROM"

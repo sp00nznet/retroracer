@@ -1,0 +1,144 @@
+#
+# RetroRacer - Xbox 360 Build Configuration
+#
+# Requires: LibXenon (Open Source) - for homebrew
+# Target: Microsoft Xbox 360 (2005)
+#
+
+# SDK Configuration
+LIBXENON ?= /opt/libxenon/usr
+DEVKITXENON ?= /opt/devkitxenon
+
+# Compiler (PowerPC)
+CC      = $(DEVKITXENON)/bin/xenon-gcc
+CXX     = $(DEVKITXENON)/bin/xenon-g++
+AS      = $(DEVKITXENON)/bin/xenon-as
+AR      = $(DEVKITXENON)/bin/xenon-ar
+LD      = $(DEVKITXENON)/bin/xenon-ld
+OBJCOPY = $(DEVKITXENON)/bin/xenon-objcopy
+STRIP   = $(DEVKITXENON)/bin/xenon-strip
+
+# Project Configuration
+TARGET  = retroracer
+BUILD   = build/xbox360
+
+# Source Files
+SOURCES = src/main.c \
+          src/game.c \
+          src/menu.c \
+          src/track.c \
+          src/vehicle.c \
+          src/ai.c \
+          src/physics.c \
+          src/math3d.c \
+          src/audio.c \
+          src/platform/platform_xbox360.c \
+          src/platform/platform_input_adapter.c \
+          src/platform/platform_render_adapter.c
+
+OBJECTS = $(SOURCES:src/%.c=$(BUILD)/%.o)
+
+# Compiler Flags
+CFLAGS  = -DXBOX360 -D_XBOX360 \
+          -mcpu=cell -mtune=cell -m32 -mhard-float \
+          -ffunction-sections -fdata-sections \
+          -O2 -Wall -Wextra \
+          -I./include \
+          -I$(LIBXENON)/include \
+          -I$(LIBXENON)/include/xenon
+
+# Linker Flags
+LDFLAGS = -L$(LIBXENON)/lib \
+          -lxenon -lc -lm -lxenos \
+          -lusb -linput -lxenoscon \
+          -T$(LIBXENON)/lib/ldscripts/xenon.ld
+
+# Output
+ELF     = $(BUILD)/$(TARGET).elf
+ELF32   = $(BUILD)/$(TARGET).elf32
+XEX     = $(BUILD)/$(TARGET).xex
+
+#------------------------------------------------------------------------------
+# Build Rules
+#------------------------------------------------------------------------------
+
+.PHONY: all clean xex run
+
+all: $(ELF32)
+
+# Create 32-bit ELF for Xenon boot
+$(ELF32): $(ELF)
+	@echo "  OBJCOPY $@"
+	@$(OBJCOPY) -O elf32-powerpc --adjust-vma 0x80000000 $< $@
+	@echo "  Built Xbox 360 executable: $@"
+
+# Create ELF from objects
+$(ELF): $(OBJECTS) | $(BUILD)
+	@echo "  LD      $@"
+	@$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
+	@$(STRIP) $@
+
+# Compile C sources
+$(BUILD)/%.o: src/%.c | $(BUILD)/platform
+	@echo "  CC      $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# Create directories
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(BUILD)/platform:
+	@mkdir -p $(BUILD)/platform
+
+# Create XEX (requires official XDK)
+xex: $(XEX)
+
+$(XEX): $(ELF32)
+	@echo "  XEX     $@"
+	@echo "XEX creation requires official Microsoft XDK"
+	@echo "For homebrew, use $(ELF32) with XeLL or similar bootloader"
+	@echo ""
+	@echo "To run on a JTAG/RGH console:"
+	@echo "  1. Boot XeLL Reloaded"
+	@echo "  2. Start kboot from TFTP or USB"
+	@echo "  3. Load $(ELF32)"
+
+# Run in emulator
+run: $(ELF32)
+	@echo "Running in Xenia emulator..."
+	@xenia $(ELF32) 2>/dev/null || \
+	 xenia-canary $(ELF32) 2>/dev/null || \
+	 echo "Xenia not found. Install Xenia emulator."
+	@echo ""
+	@echo "Note: Xenia has limited homebrew support."
+	@echo "For best results, test on real hardware with JTAG/RGH."
+
+# Clean build
+clean:
+	@echo "  CLEAN   $(BUILD)"
+	@rm -rf $(BUILD)
+
+# Print info
+info:
+	@echo "RetroRacer - Xbox 360 Build"
+	@echo "==========================="
+	@echo "SDK:        $(LIBXENON)"
+	@echo "Compiler:   $(CC)"
+	@echo "Output:     $(ELF32)"
+	@echo ""
+	@echo "Xbox 360 Hardware Specs:"
+	@echo "  CPU:      3.2 GHz PowerPC Tri-Core Xenon"
+	@echo "  RAM:      512MB GDDR3 (unified)"
+	@echo "  GPU:      ATI Xenos (R500), 500 MHz"
+	@echo "  Audio:    Multi-channel XMA decoder"
+	@echo "  Media:    DVD-DL, HDD"
+	@echo ""
+	@echo "Note: This builds homebrew using LibXenon."
+	@echo "Running on real hardware requires JTAG/RGH modification."
+
+# TFTP boot (for development on real hardware)
+tftp: $(ELF32)
+	@echo "Sending $(ELF32) via TFTP..."
+	@echo "Ensure your Xbox 360 is booted into XeLL and waiting for TFTP"
+	@tftp -i 192.168.1.100 PUT $(ELF32) 2>/dev/null || \
+	 echo "TFTP transfer failed. Check your network settings."
