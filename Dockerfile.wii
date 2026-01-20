@@ -1,0 +1,38 @@
+#
+# RetroRacer - Wii Build Environment
+# Uses devkitPPC and libogc
+#
+
+FROM devkitpro/devkitppc:latest
+
+LABEL maintainer="RetroRacer Team"
+LABEL description="Wii build environment for RetroRacer"
+
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+    make \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Wii libraries
+RUN dkp-pacman -Syu --noconfirm \
+    wii-dev \
+    libogc \
+    libfat-ogc \
+    ppc-freetype \
+    ppc-libpng \
+    ppc-zlib
+
+# Set environment variables
+ENV DEVKITPRO=/opt/devkitpro
+ENV DEVKITPPC=/opt/devkitpro/devkitPPC
+ENV PATH="${DEVKITPPC}/bin:${PATH}"
+
+# Create working directory
+WORKDIR /build
+
+# Copy source files
+COPY . .
+
+# Build command
+CMD ["make", "-f", "Makefile.wii", "clean", "all"]

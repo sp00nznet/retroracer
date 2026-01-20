@@ -1,0 +1,61 @@
+#
+# RetroRacer - Xbox One Makefile
+# Uses Microsoft Xbox Development Kit (XDK)
+#
+
+TARGET      := retroracer
+BUILD       := build/xboxone
+SOURCES     := src src/platform/xboxone
+INCLUDES    := include
+
+# Xbox One XDK paths (adjust as needed)
+XDKROOT     ?= C:/Program Files (x86)/Microsoft Xbox One XDK
+XDKINC      := $(XDKROOT)/xdk/include/um
+XDKLIB      := $(XDKROOT)/xdk/lib/x64
+
+CC          := cl.exe
+CXX         := cl.exe
+LINK        := link.exe
+
+CFLAGS      := /nologo /W4 /O2 /GS- /DPLATFORM_XBOXONE /D_XBOX_ONE \
+               /I$(INCLUDES) /I"$(XDKINC)"
+
+CXXFLAGS    := $(CFLAGS) /EHsc
+
+LDFLAGS     := /nologo /SUBSYSTEM:CONSOLE \
+               /LIBPATH:"$(XDKLIB)"
+
+LIBS        := d3d12_x.lib dxgi.lib xaudio2.lib xinput.lib xg_x.lib
+
+CFILES      := $(wildcard $(foreach dir,$(SOURCES),$(dir)/*.c))
+CPPFILES    := $(wildcard $(foreach dir,$(SOURCES),$(dir)/*.cpp))
+
+OBJS        := $(CFILES:.c=.obj) $(CPPFILES:.cpp=.obj)
+
+.PHONY: all clean
+
+all: $(BUILD) $(TARGET).exe
+
+$(BUILD):
+	@if not exist $(BUILD) mkdir $(BUILD)
+
+$(TARGET).exe: $(OBJS)
+	$(LINK) $(LDFLAGS) /OUT:$@ $^ $(LIBS)
+
+%.obj: %.c
+	$(CC) $(CFLAGS) /c /Fo$@ $<
+
+%.obj: %.cpp
+	$(CXX) $(CXXFLAGS) /c /Fo$@ $<
+
+clean:
+	@if exist $(BUILD) rmdir /s /q $(BUILD)
+	@if exist $(TARGET).exe del $(TARGET).exe
+	@if exist *.obj del *.obj
+
+# Alternative GCC-based build for testing
+.PHONY: gcc-build
+
+gcc-build:
+	gcc -DPLATFORM_XBOXONE -I$(INCLUDES) -o $(TARGET)_test \
+	    $(CFILES) -lm

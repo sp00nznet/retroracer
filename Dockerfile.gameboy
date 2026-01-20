@@ -1,0 +1,37 @@
+#
+# RetroRacer - Game Boy Build Environment
+# Uses GBDK-2020
+#
+
+FROM ubuntu:22.04
+
+LABEL maintainer="RetroRacer Team"
+LABEL description="Game Boy build environment for RetroRacer"
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    make \
+    git \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install GBDK-2020
+ENV GBDK_VERSION=4.2.0
+RUN wget -q https://github.com/gbdk-2020/gbdk-2020/releases/download/${GBDK_VERSION}/gbdk-linux64.tar.gz \
+    && tar -xzf gbdk-linux64.tar.gz -C /opt \
+    && rm gbdk-linux64.tar.gz
+
+# Set environment variables
+ENV GBDK=/opt/gbdk
+ENV PATH="${GBDK}/bin:${PATH}"
+
+# Create working directory
+WORKDIR /build
+
+# Copy source files
+COPY . .
+
+# Build command
+CMD ["make", "-f", "Makefile.gameboy", "clean", "all"]

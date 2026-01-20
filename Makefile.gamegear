@@ -1,0 +1,78 @@
+#
+# RetroRacer - Game Gear Makefile
+# Uses devkitSMS (https://github.com/sverx/devkitSMS)
+#
+
+# Path to devkitSMS
+DEVKITSMS   ?= /opt/devkitSMS
+
+# SDCC path
+SDCC        ?= /usr/bin
+
+TARGET      := retroracer
+BUILD       := build/gamegear
+SOURCES     := src src/platform/gamegear
+INCLUDES    := include
+DATA        := assets/gamegear
+
+CC          := $(SDCC)/sdcc
+AS          := $(SDCC)/sdasz80
+LD          := $(SDCC)/sdcc
+MAKEBIN     := $(DEVKITSMS)/bin/ihx2sms
+
+CFLAGS      := -mz80 --std-sdcc11 -DPLATFORM_GAMEGEAR \
+               --opt-code-size --max-allocs-per-node 50000 \
+               -I$(DEVKITSMS)/include \
+               $(foreach dir,$(INCLUDES),-I$(dir))
+
+LDFLAGS     := -mz80 --no-std-crt0 --data-loc 0xC000 \
+               -L$(DEVKITSMS)/lib
+
+LIBS        := $(DEVKITSMS)/lib/crt0_sms.rel \
+               $(DEVKITSMS)/lib/SMSlib.lib
+
+# Source files
+CFILES      := $(wildcard $(foreach dir,$(SOURCES),$(dir)/*.c))
+RELFILES    := $(CFILES:.c=.rel)
+
+# ROM name
+ROM_NAME    := $(TARGET)_gg.gg
+
+.PHONY: all clean
+
+all: $(BUILD) $(ROM_NAME)
+
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(ROM_NAME): $(RELFILES)
+	$(LD) $(LDFLAGS) -o $(TARGET).ihx $(LIBS) $^
+	$(MAKEBIN) $(TARGET).ihx $@ -gg
+	@echo "Built: $@"
+
+%.rel: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Convert graphics to SMS/GG format
+%.c: %.png
+	$(DEVKITSMS)/bin/folder2c $< $@ tiles
+
+clean:
+	rm -rf $(BUILD)
+	rm -f $(ROM_NAME) $(TARGET).ihx
+	rm -f $(foreach dir,$(SOURCES),$(dir)/*.rel)
+	rm -f $(foreach dir,$(SOURCES),$(dir)/*.asm)
+	rm -f $(foreach dir,$(SOURCES),$(dir)/*.lst)
+	rm -f $(foreach dir,$(SOURCES),$(dir)/*.sym)
+	rm -f *.map *.noi *.sym *.lk *.mem
+
+# SMS build (Sega Master System compatibility)
+sms: ROM_NAME := $(TARGET)_sms.sms
+sms: $(BUILD) $(ROM_NAME)
+	$(MAKEBIN) $(TARGET).ihx $(ROM_NAME)
+
+# Run in emulator
+run: $(ROM_NAME)
+	meka $(ROM_NAME) &
+
+.PHONY: run sms

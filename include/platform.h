@@ -1,6 +1,7 @@
 /*
  * RetroRacer - Platform Abstraction Layer
- * Supports: Dreamcast, PS1, PS2, PS3, Xbox, Xbox 360, N64, SNES, Genesis, 3DO, GBA, NDS, 3DS
+ * Supports: Dreamcast, PS1, PS2, PS3, Xbox, Xbox 360, Xbox One, N64, SNES,
+ *           Genesis, 3DO, GBA, NDS, 3DS, Wii, Wii U, Switch, Game Boy, Game Gear
  */
 
 #ifndef PLATFORM_H
@@ -21,6 +22,9 @@
 #elif defined(PS3) || defined(PLAYSTATION3)
     #define PLATFORM_PS3 1
     #define PLATFORM_NAME "PlayStation 3"
+#elif defined(XBOXONE) || defined(_XBOXONE) || defined(PLATFORM_XBOXONE)
+    #define PLATFORM_XBOXONE 1
+    #define PLATFORM_NAME "Xbox One"
 #elif defined(XBOX360) || defined(_XBOX360)
     #define PLATFORM_XBOX360 1
     #define PLATFORM_NAME "Xbox 360"
@@ -48,6 +52,21 @@
 #elif defined(__3DS__) || defined(_3DS) || defined(PLATFORM_3DS)
     #define PLATFORM_3DS 1
     #define PLATFORM_NAME "Nintendo 3DS"
+#elif defined(PLATFORM_WII) || defined(GEKKO) || defined(HW_RVL)
+    #define PLATFORM_WII 1
+    #define PLATFORM_NAME "Nintendo Wii"
+#elif defined(PLATFORM_WIIU) || defined(__WIIU__) || defined(HW_WUP)
+    #define PLATFORM_WIIU 1
+    #define PLATFORM_NAME "Nintendo Wii U"
+#elif defined(PLATFORM_SWITCH) || defined(__SWITCH__) || defined(__NX__)
+    #define PLATFORM_SWITCH 1
+    #define PLATFORM_NAME "Nintendo Switch"
+#elif defined(PLATFORM_GAMEBOY) || defined(GAMEBOY) || defined(__GAMEBOY__)
+    #define PLATFORM_GAMEBOY 1
+    #define PLATFORM_NAME "Game Boy"
+#elif defined(PLATFORM_GAMEGEAR) || defined(GAMEGEAR) || defined(__GAMEGEAR__)
+    #define PLATFORM_GAMEGEAR 1
+    #define PLATFORM_NAME "Game Gear"
 #else
     #define PLATFORM_NATIVE 1
     #define PLATFORM_NAME "Native"
@@ -106,6 +125,30 @@
     #define SCREEN_WIDTH  400
     #define SCREEN_HEIGHT 240
     #define SCREEN_BPP    24
+#elif defined(PLATFORM_WII)
+    #define SCREEN_WIDTH  640
+    #define SCREEN_HEIGHT 480
+    #define SCREEN_BPP    32
+#elif defined(PLATFORM_WIIU)
+    #define SCREEN_WIDTH  1920
+    #define SCREEN_HEIGHT 1080
+    #define SCREEN_BPP    32
+#elif defined(PLATFORM_SWITCH)
+    #define SCREEN_WIDTH  1920
+    #define SCREEN_HEIGHT 1080
+    #define SCREEN_BPP    32
+#elif defined(PLATFORM_XBOXONE)
+    #define SCREEN_WIDTH  1920
+    #define SCREEN_HEIGHT 1080
+    #define SCREEN_BPP    32
+#elif defined(PLATFORM_GAMEBOY)
+    #define SCREEN_WIDTH  160
+    #define SCREEN_HEIGHT 144
+    #define SCREEN_BPP    2
+#elif defined(PLATFORM_GAMEGEAR)
+    #define SCREEN_WIDTH  160
+    #define SCREEN_HEIGHT 144
+    #define SCREEN_BPP    12
 #else
     #define SCREEN_WIDTH  640
     #define SCREEN_HEIGHT 480

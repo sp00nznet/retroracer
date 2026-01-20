@@ -48,6 +48,15 @@ if "%1"=="gba" goto :build_gba
 if "%1"=="nds" goto :build_nds
 if "%1"=="ds" goto :build_nds
 if "%1"=="3ds" goto :build_3ds
+if "%1"=="wii" goto :build_wii
+if "%1"=="wiiu" goto :build_wiiu
+if "%1"=="switch" goto :build_switch
+if "%1"=="nx" goto :build_switch
+if "%1"=="xboxone" goto :build_xboxone
+if "%1"=="gameboy" goto :build_gameboy
+if "%1"=="gb" goto :build_gameboy
+if "%1"=="gamegear" goto :build_gamegear
+if "%1"=="gg" goto :build_gamegear
 if "%1"=="all" goto :build_all
 if "%1"=="clean" goto :clean_all
 
@@ -169,6 +178,54 @@ docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-3ds sh -c "make -f Ma
 echo [OK] Built: output\retroracer_3ds.3dsx
 goto :end
 
+:build_wii
+echo [INFO] Building for Nintendo Wii...
+docker build -t retroracer-wii -f Dockerfile.wii .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-wii sh -c "make -f Makefile.wii && cp retroracer.dol /output/retroracer_wii.dol 2>/dev/null || true"
+echo [OK] Built: output\retroracer_wii.dol
+goto :end
+
+:build_wiiu
+echo [INFO] Building for Nintendo Wii U...
+docker build -t retroracer-wiiu -f Dockerfile.wiiu .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-wiiu sh -c "make -f Makefile.wiiu && cp retroracer.rpx /output/retroracer_wiiu.rpx 2>/dev/null || true"
+echo [OK] Built: output\retroracer_wiiu.rpx
+goto :end
+
+:build_switch
+echo [INFO] Building for Nintendo Switch...
+docker build -t retroracer-switch -f Dockerfile.switch .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-switch sh -c "make -f Makefile.switch && cp retroracer.nro /output/retroracer_switch.nro 2>/dev/null || true"
+echo [OK] Built: output\retroracer_switch.nro
+goto :end
+
+:build_xboxone
+echo [INFO] Building for Xbox One...
+docker build -t retroracer-xboxone -f Dockerfile.xboxone .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-xboxone sh -c "make -f Makefile.xboxone 2>/dev/null || true"
+echo [OK] Built: output\retroracer_xboxone (stub)
+goto :end
+
+:build_gameboy
+echo [INFO] Building for Game Boy...
+docker build -t retroracer-gameboy -f Dockerfile.gameboy .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-gameboy sh -c "make -f Makefile.gameboy && cp retroracer_gb.gb /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_gb.gb
+goto :end
+
+:build_gamegear
+echo [INFO] Building for Game Gear...
+docker build -t retroracer-gamegear -f Dockerfile.gamegear .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-gamegear sh -c "make -f Makefile.gamegear && cp retroracer_gg.gg /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_gg.gg
+goto :end
+
 :build_all
 echo [INFO] Building for ALL platforms...
 if not exist output mkdir output
@@ -186,6 +243,12 @@ call :build_3do
 call :build_gba
 call :build_nds
 call :build_3ds
+call :build_wii
+call :build_wiiu
+call :build_switch
+call :build_xboxone
+call :build_gameboy
+call :build_gamegear
 
 echo.
 echo === Build Complete ===
@@ -218,6 +281,12 @@ echo   3do        Build for 3DO
 echo   gba        Build for Game Boy Advance
 echo   nds        Build for Nintendo DS
 echo   3ds        Build for Nintendo 3DS
+echo   wii        Build for Nintendo Wii
+echo   wiiu       Build for Nintendo Wii U
+echo   switch     Build for Nintendo Switch
+echo   xboxone    Build for Xbox One
+echo   gameboy    Build for Game Boy
+echo   gamegear   Build for Game Gear
 echo   all        Build for ALL platforms
 echo   clean      Remove all build artifacts
 echo.

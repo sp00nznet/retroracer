@@ -1,0 +1,39 @@
+#
+# RetroRacer - Nintendo Switch Build Environment
+# Uses devkitA64 and libnx
+#
+
+FROM devkitpro/devkita64:latest
+
+LABEL maintainer="RetroRacer Team"
+LABEL description="Nintendo Switch build environment for RetroRacer"
+
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+    make \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Switch libraries
+RUN dkp-pacman -Syu --noconfirm \
+    switch-dev \
+    libnx \
+    switch-freetype \
+    switch-libpng \
+    switch-zlib \
+    switch-mesa \
+    switch-glad
+
+# Set environment variables
+ENV DEVKITPRO=/opt/devkitpro
+ENV DEVKITA64=/opt/devkitpro/devkitA64
+ENV PATH="${DEVKITA64}/bin:${PATH}"
+
+# Create working directory
+WORKDIR /build
+
+# Copy source files
+COPY . .
+
+# Build command
+CMD ["make", "-f", "Makefile.switch", "clean", "all"]

@@ -1,0 +1,71 @@
+#
+# RetroRacer - Game Boy Makefile
+# Uses GBDK-2020 (https://github.com/gbdk-2020/gbdk-2020)
+#
+
+# Path to GBDK installation
+GBDK        ?= /opt/gbdk
+
+TARGET      := retroracer
+BUILD       := build/gameboy
+SOURCES     := src src/platform/gameboy
+INCLUDES    := include
+DATA        := assets/gameboy
+
+CC          := $(GBDK)/bin/lcc
+CFLAGS      := -Wa-l -Wl-m -Wl-j -DPLATFORM_GAMEBOY
+
+# Add include paths
+CFLAGS      += $(foreach dir,$(INCLUDES),-I$(dir))
+CFLAGS      += -I$(GBDK)/include
+
+# Source files
+CFILES      := $(wildcard $(foreach dir,$(SOURCES),$(dir)/*.c))
+
+# Object files
+OBJS        := $(CFILES:.c=.o)
+
+# ROM name
+ROM_NAME    := $(TARGET)_gb.gb
+
+.PHONY: all clean cgb
+
+# Default: DMG (original Game Boy) build
+all: $(BUILD) $(ROM_NAME)
+
+# Game Boy Color build
+cgb: CFLAGS += -Wm-yC
+cgb: ROM_NAME := $(TARGET)_gbc.gbc
+cgb: $(BUILD) $(ROM_NAME)
+
+$(BUILD):
+	@mkdir -p $(BUILD)
+
+$(ROM_NAME): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+	@echo "Built: $@"
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Convert PNG to Game Boy tiles
+%.c: %.png
+	$(GBDK)/bin/png2asset $< -o $@
+
+clean:
+	rm -rf $(BUILD)
+	rm -f $(TARGET)_gb.gb $(TARGET)_gbc.gbc
+	rm -f $(foreach dir,$(SOURCES),$(dir)/*.o)
+	rm -f *.map *.noi *.sym
+
+# Generate tile data from images
+tiles:
+	@for png in $(DATA)/*.png; do \
+		$(GBDK)/bin/png2asset $$png -o $${png%.png}.c; \
+	done
+
+# Run in emulator (requires bgb or similar)
+run: $(ROM_NAME)
+	bgb $(ROM_NAME) &
+
+.PHONY: run tiles

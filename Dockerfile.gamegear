@@ -1,0 +1,36 @@
+#
+# RetroRacer - Game Gear Build Environment
+# Uses SDCC and devkitSMS
+#
+
+FROM ubuntu:22.04
+
+LABEL maintainer="RetroRacer Team"
+LABEL description="Game Gear build environment for RetroRacer"
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    make \
+    git \
+    wget \
+    unzip \
+    sdcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install devkitSMS
+RUN git clone https://github.com/sverx/devkitSMS.git /opt/devkitSMS
+
+# Set environment variables
+ENV DEVKITSMS=/opt/devkitSMS
+ENV SDCC=/usr
+ENV PATH="${DEVKITSMS}/bin:${PATH}"
+
+# Create working directory
+WORKDIR /build
+
+# Copy source files
+COPY . .
+
+# Build command
+CMD ["make", "-f", "Makefile.gamegear", "clean", "all"]
