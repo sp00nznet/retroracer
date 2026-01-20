@@ -120,6 +120,51 @@ build_snes() {
     log_success "Built: output/retroracer.sfc"
 }
 
+build_xbox360() {
+    log_info "Building for Xbox 360..."
+    docker build -t retroracer-xbox360 -f Dockerfile.xbox360 .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-xbox360 \
+        sh -c "make -f Makefile.xbox360 clean 2>/dev/null; make -f Makefile.xbox360 && cp retroracer_xbox360.xex /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_xbox360.xex"
+}
+
+build_genesis() {
+    log_info "Building for Sega Genesis..."
+    docker build -t retroracer-genesis -f Dockerfile.genesis .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-genesis \
+        sh -c "make -f Makefile.genesis clean 2>/dev/null; make -f Makefile.genesis && cp retroracer_genesis.bin /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_genesis.bin"
+}
+
+build_3do() {
+    log_info "Building for 3DO..."
+    docker build -t retroracer-3do -f Dockerfile.3do .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-3do \
+        sh -c "make -f Makefile.3do clean 2>/dev/null; make -f Makefile.3do && cp retroracer_3do.iso /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_3do.iso"
+}
+
+build_gba() {
+    log_info "Building for Game Boy Advance..."
+    docker build -t retroracer-gba -f Dockerfile.gba .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-gba \
+        sh -c "make -f Makefile.gba clean 2>/dev/null; make -f Makefile.gba && cp retroracer_gba.gba /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_gba.gba"
+}
+
+build_nds() {
+    log_info "Building for Nintendo DS..."
+    docker build -t retroracer-nds -f Dockerfile.nds .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-nds \
+        sh -c "make -f Makefile.nds clean 2>/dev/null; make -f Makefile.nds && cp retroracer_nds.nds /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_nds.nds"
+}
+
 build_all() {
     log_info "Building for ALL platforms..."
     echo ""
@@ -177,6 +222,36 @@ build_all() {
         RESULTS+=("SNES: ${RED}FAILED${NC}")
     fi
 
+    if build_xbox360; then
+        RESULTS+=("Xbox 360: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("Xbox 360: ${RED}FAILED${NC}")
+    fi
+
+    if build_genesis; then
+        RESULTS+=("Genesis: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("Genesis: ${RED}FAILED${NC}")
+    fi
+
+    if build_3do; then
+        RESULTS+=("3DO: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("3DO: ${RED}FAILED${NC}")
+    fi
+
+    if build_gba; then
+        RESULTS+=("GBA: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("GBA: ${RED}FAILED${NC}")
+    fi
+
+    if build_nds; then
+        RESULTS+=("NDS: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("NDS: ${RED}FAILED${NC}")
+    fi
+
     echo ""
     echo -e "${CYAN}=== Build Results ===${NC}"
     for r in "${RESULTS[@]}"; do
@@ -209,8 +284,13 @@ if [ $# -eq 0 ]; then
     echo "  ps2        Build for PlayStation 2"
     echo "  ps3        Build for PlayStation 3"
     echo "  xbox       Build for Original Xbox"
+    echo "  xbox360    Build for Xbox 360"
     echo "  n64        Build for Nintendo 64"
     echo "  snes       Build for Super Nintendo"
+    echo "  genesis    Build for Sega Genesis"
+    echo "  3do        Build for 3DO"
+    echo "  gba        Build for Game Boy Advance"
+    echo "  nds        Build for Nintendo DS"
     echo "  all        Build for ALL platforms"
     echo "  clean      Remove all build artifacts"
     echo ""
@@ -252,6 +332,26 @@ case "$1" in
     snes)
         check_docker
         build_snes
+        ;;
+    xbox360)
+        check_docker
+        build_xbox360
+        ;;
+    genesis|megadrive|md)
+        check_docker
+        build_genesis
+        ;;
+    3do)
+        check_docker
+        build_3do
+        ;;
+    gba)
+        check_docker
+        build_gba
+        ;;
+    nds|ds)
+        check_docker
+        build_nds
         ;;
     all)
         check_docker

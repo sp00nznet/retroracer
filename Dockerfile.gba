@@ -1,0 +1,16 @@
+# RetroRacer - Game Boy Advance Build Environment
+# Uses devkitARM / libgba
+
+FROM devkitpro/devkitarm:latest
+
+ENV DEVKITPRO=/opt/devkitpro
+ENV DEVKITARM=${DEVKITPRO}/devkitARM
+ENV PATH="${DEVKITARM}/bin:${PATH}"
+
+# Install libgba if not present
+RUN dkp-pacman -Sy --noconfirm gba-dev
+
+WORKDIR /src
+COPY . .
+
+CMD ["make", "-f", "Makefile.gba"]

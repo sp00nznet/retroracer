@@ -1,0 +1,16 @@
+# RetroRacer - Nintendo DS Build Environment
+# Uses devkitARM / libnds
+
+FROM devkitpro/devkitarm:latest
+
+ENV DEVKITPRO=/opt/devkitpro
+ENV DEVKITARM=${DEVKITPRO}/devkitARM
+ENV PATH="${DEVKITARM}/bin:${PATH}"
+
+# Install libnds and dependencies
+RUN dkp-pacman -Sy --noconfirm nds-dev maxmod
+
+WORKDIR /src
+COPY . .
+
+CMD ["make", "-f", "Makefile.nds"]

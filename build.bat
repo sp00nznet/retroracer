@@ -40,6 +40,13 @@ if "%1"=="ps3" goto :build_ps3
 if "%1"=="xbox" goto :build_xbox
 if "%1"=="n64" goto :build_n64
 if "%1"=="snes" goto :build_snes
+if "%1"=="xbox360" goto :build_xbox360
+if "%1"=="genesis" goto :build_genesis
+if "%1"=="megadrive" goto :build_genesis
+if "%1"=="3do" goto :build_3do
+if "%1"=="gba" goto :build_gba
+if "%1"=="nds" goto :build_nds
+if "%1"=="ds" goto :build_nds
 if "%1"=="all" goto :build_all
 if "%1"=="clean" goto :clean_all
 
@@ -113,6 +120,46 @@ docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-snes sh -c "make -f M
 echo [OK] Built: output\retroracer.sfc
 goto :end
 
+:build_xbox360
+echo [INFO] Building for Xbox 360...
+docker build -t retroracer-xbox360 -f Dockerfile.xbox360 .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-xbox360 sh -c "make -f Makefile.xbox360 && cp retroracer_xbox360.xex /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_xbox360.xex
+goto :end
+
+:build_genesis
+echo [INFO] Building for Sega Genesis...
+docker build -t retroracer-genesis -f Dockerfile.genesis .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-genesis sh -c "make -f Makefile.genesis && cp retroracer_genesis.bin /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_genesis.bin
+goto :end
+
+:build_3do
+echo [INFO] Building for 3DO...
+docker build -t retroracer-3do -f Dockerfile.3do .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-3do sh -c "make -f Makefile.3do && cp retroracer_3do.iso /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_3do.iso
+goto :end
+
+:build_gba
+echo [INFO] Building for Game Boy Advance...
+docker build -t retroracer-gba -f Dockerfile.gba .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-gba sh -c "make -f Makefile.gba && cp retroracer_gba.gba /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_gba.gba
+goto :end
+
+:build_nds
+echo [INFO] Building for Nintendo DS...
+docker build -t retroracer-nds -f Dockerfile.nds .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-nds sh -c "make -f Makefile.nds && cp retroracer_nds.nds /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_nds.nds
+goto :end
+
 :build_all
 echo [INFO] Building for ALL platforms...
 if not exist output mkdir output
@@ -122,8 +169,13 @@ call :build_psx
 call :build_ps2
 call :build_ps3
 call :build_xbox
+call :build_xbox360
 call :build_n64
 call :build_snes
+call :build_genesis
+call :build_3do
+call :build_gba
+call :build_nds
 
 echo.
 echo === Build Complete ===
@@ -148,8 +200,13 @@ echo   psx        Build for PlayStation 1
 echo   ps2        Build for PlayStation 2
 echo   ps3        Build for PlayStation 3
 echo   xbox       Build for Original Xbox
+echo   xbox360    Build for Xbox 360
 echo   n64        Build for Nintendo 64
 echo   snes       Build for Super Nintendo
+echo   genesis    Build for Sega Genesis
+echo   3do        Build for 3DO
+echo   gba        Build for Game Boy Advance
+echo   nds        Build for Nintendo DS
 echo   all        Build for ALL platforms
 echo   clean      Remove all build artifacts
 echo.

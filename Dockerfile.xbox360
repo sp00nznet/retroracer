@@ -1,0 +1,31 @@
+# RetroRacer - Xbox 360 Build Environment
+# Uses libxenon for Xbox 360 homebrew
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    wget \
+    curl \
+    libgmp-dev \
+    libmpfr-dev \
+    libmpc-dev \
+    texinfo \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build libxenon toolchain
+WORKDIR /opt
+RUN git clone https://github.com/Free60Project/libxenon.git && \
+    cd libxenon/toolchain && \
+    ./build-xenon-toolchain.sh
+
+ENV PATH="/opt/libxenon/bin:${PATH}"
+
+WORKDIR /src
+COPY . .
+
+CMD ["make", "-f", "Makefile.xbox360"]

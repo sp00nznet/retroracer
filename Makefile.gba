@@ -1,0 +1,50 @@
+# RetroRacer - Game Boy Advance Makefile
+# Uses devkitARM / libgba
+
+DEVKITPRO = /opt/devkitpro
+DEVKITARM = $(DEVKITPRO)/devkitARM
+
+include $(DEVKITARM)/gba_rules
+
+TARGET = retroracer_gba
+ROM = $(TARGET).gba
+
+CC = $(DEVKITARM)/bin/arm-none-eabi-gcc
+OBJCOPY = $(DEVKITARM)/bin/arm-none-eabi-objcopy
+
+ARCH = -mthumb -mthumb-interwork
+
+CFLAGS = -O2 -Wall $(ARCH) -mcpu=arm7tdmi -mtune=arm7tdmi
+CFLAGS += -I$(DEVKITPRO)/libgba/include -Iinclude
+CFLAGS += -DPLATFORM_GBA
+
+LDFLAGS = $(ARCH) -specs=gba.specs
+LDFLAGS += -L$(DEVKITPRO)/libgba/lib -lgba -lm
+
+# Source files
+SRCS = src/main.c src/game.c src/vehicle.c src/track.c src/physics.c \
+       src/ai.c src/menu.c src/math3d.c \
+       src/platform/gba/render_gba.c \
+       src/platform/gba/input_gba.c \
+       src/platform/gba/audio_gba.c \
+       src/platform/gba/platform_gba.c
+
+OBJS = $(SRCS:.c=.o)
+ELF = $(TARGET).elf
+
+.PHONY: all clean
+
+all: $(ROM)
+
+$(ROM): $(ELF)
+	$(OBJCOPY) -O binary $< $@
+	gbafix $@
+
+$(ELF): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(OBJS) $(ELF) $(ROM)

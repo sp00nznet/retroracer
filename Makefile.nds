@@ -1,0 +1,50 @@
+# RetroRacer - Nintendo DS Makefile
+# Uses devkitARM / libnds
+
+DEVKITPRO = /opt/devkitpro
+DEVKITARM = $(DEVKITPRO)/devkitARM
+
+include $(DEVKITARM)/ds_rules
+
+TARGET = retroracer_nds
+ROM = $(TARGET).nds
+
+CC = $(DEVKITARM)/bin/arm-none-eabi-gcc
+OBJCOPY = $(DEVKITARM)/bin/arm-none-eabi-objcopy
+
+ARCH = -mthumb -mthumb-interwork
+
+# ARM9 flags (main CPU)
+CFLAGS = -O2 -Wall $(ARCH) -march=armv5te -mtune=arm946e-s
+CFLAGS += -I$(DEVKITPRO)/libnds/include -Iinclude
+CFLAGS += -DPLATFORM_NDS -DARM9
+
+LDFLAGS = $(ARCH) -specs=ds_arm9.specs
+LDFLAGS += -L$(DEVKITPRO)/libnds/lib -lnds9 -lmm9 -lm
+
+# Source files
+SRCS = src/main.c src/game.c src/vehicle.c src/track.c src/physics.c \
+       src/ai.c src/menu.c src/math3d.c \
+       src/platform/nds/render_nds.c \
+       src/platform/nds/input_nds.c \
+       src/platform/nds/audio_nds.c \
+       src/platform/nds/platform_nds.c
+
+OBJS = $(SRCS:.c=.o)
+ELF = $(TARGET).elf
+
+.PHONY: all clean
+
+all: $(ROM)
+
+$(ROM): $(ELF)
+	ndstool -c $@ -9 $<
+
+$(ELF): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(OBJS) $(ELF) $(ROM)

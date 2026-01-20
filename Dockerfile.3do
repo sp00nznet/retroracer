@@ -1,0 +1,27 @@
+# RetroRacer - 3DO Build Environment
+# Uses 3DO SDK with ARM toolchain
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ARM cross-compiler and 3DO SDK
+# Note: 3DO SDK requires special licensing - this uses open source alternatives
+WORKDIR /opt
+RUN git clone https://github.com/trapexit/3do-devkit.git 3do-sdk && \
+    cd 3do-sdk && \
+    ./install.sh
+
+ENV PATH="/opt/3do-sdk/bin:${PATH}"
+
+WORKDIR /src
+COPY . .
+
+CMD ["make", "-f", "Makefile.3do"]

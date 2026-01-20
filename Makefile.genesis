@@ -1,0 +1,31 @@
+# RetroRacer - Sega Genesis/Mega Drive Makefile
+# Uses SGDK (Sega Genesis Development Kit)
+
+SGDK = /opt/sgdk
+GDK = $(SGDK)
+
+include $(SGDK)/makefile.gen
+
+# Project settings
+TARGET = retroracer_genesis
+ROM = $(TARGET).bin
+
+CFLAGS += -Iinclude -DPLATFORM_GENESIS
+
+# Source files
+SRC_C = src/main.c src/game.c src/vehicle.c src/track.c src/physics.c \
+        src/ai.c src/menu.c src/math3d.c \
+        src/platform/genesis/render_genesis.c \
+        src/platform/genesis/input_genesis.c \
+        src/platform/genesis/audio_genesis.c \
+        src/platform/genesis/platform_genesis.c
+
+# Resources (graphics, sounds)
+RES_DIR = res
+
+.PHONY: all clean
+
+all: $(ROM)
+
+clean:
+	rm -rf out $(ROM)

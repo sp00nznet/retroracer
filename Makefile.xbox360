@@ -1,0 +1,43 @@
+# RetroRacer - Xbox 360 Makefile
+# Uses libxenon toolchain
+
+TOOLCHAIN = /opt/libxenon
+CC = $(TOOLCHAIN)/bin/xenon-gcc
+LD = $(TOOLCHAIN)/bin/xenon-ld
+OBJCOPY = $(TOOLCHAIN)/bin/xenon-objcopy
+
+TARGET = retroracer_xbox360
+ELF = $(TARGET).elf
+XEX = $(TARGET).xex
+
+CFLAGS = -O2 -Wall -mcpu=cell -mtune=cell -m32 -fno-pic -mpowerpc64
+CFLAGS += -I$(TOOLCHAIN)/usr/include -Iinclude
+CFLAGS += -DPLATFORM_XBOX360
+
+LDFLAGS = -L$(TOOLCHAIN)/usr/lib -lxenon -lm -lc
+
+# Source files
+SRCS = src/main.c src/game.c src/vehicle.c src/track.c src/physics.c \
+       src/ai.c src/menu.c src/math3d.c \
+       src/platform/xbox360/render_xbox360.c \
+       src/platform/xbox360/input_xbox360.c \
+       src/platform/xbox360/audio_xbox360.c \
+       src/platform/xbox360/platform_xbox360.c
+
+OBJS = $(SRCS:.c=.o)
+
+.PHONY: all clean
+
+all: $(XEX)
+
+$(XEX): $(ELF)
+	$(TOOLCHAIN)/bin/xenon-createxex -o $@ $<
+
+$(ELF): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(OBJS) $(ELF) $(XEX)

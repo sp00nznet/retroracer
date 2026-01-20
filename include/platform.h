@@ -1,6 +1,6 @@
 /*
  * RetroRacer - Platform Abstraction Layer
- * Supports: Dreamcast, PS1, PS2, PS3, Xbox, N64, SNES
+ * Supports: Dreamcast, PS1, PS2, PS3, Xbox, Xbox 360, N64, SNES, Genesis, 3DO, GBA, NDS
  */
 
 #ifndef PLATFORM_H
@@ -21,6 +21,9 @@
 #elif defined(PS3) || defined(PLAYSTATION3)
     #define PLATFORM_PS3 1
     #define PLATFORM_NAME "PlayStation 3"
+#elif defined(XBOX360) || defined(_XBOX360)
+    #define PLATFORM_XBOX360 1
+    #define PLATFORM_NAME "Xbox 360"
 #elif defined(XBOX) || defined(_XBOX)
     #define PLATFORM_XBOX 1
     #define PLATFORM_NAME "Xbox"
@@ -30,6 +33,18 @@
 #elif defined(SNES) || defined(PLATFORM_SNES)
     #define PLATFORM_SNES 1
     #define PLATFORM_NAME "Super Nintendo"
+#elif defined(GENESIS) || defined(MEGADRIVE) || defined(PLATFORM_GENESIS)
+    #define PLATFORM_GENESIS 1
+    #define PLATFORM_NAME "Sega Genesis"
+#elif defined(_3DO) || defined(PLATFORM_3DO)
+    #define PLATFORM_3DO 1
+    #define PLATFORM_NAME "3DO"
+#elif defined(GBA) || defined(PLATFORM_GBA)
+    #define PLATFORM_GBA 1
+    #define PLATFORM_NAME "Game Boy Advance"
+#elif defined(NDS) || defined(ARM9) || defined(PLATFORM_NDS)
+    #define PLATFORM_NDS 1
+    #define PLATFORM_NAME "Nintendo DS"
 #else
     #define PLATFORM_NATIVE 1
     #define PLATFORM_NAME "Native"
@@ -64,6 +79,26 @@
     #define SCREEN_WIDTH  256
     #define SCREEN_HEIGHT 224
     #define SCREEN_BPP    15
+#elif defined(PLATFORM_XBOX360)
+    #define SCREEN_WIDTH  1280
+    #define SCREEN_HEIGHT 720
+    #define SCREEN_BPP    32
+#elif defined(PLATFORM_GENESIS)
+    #define SCREEN_WIDTH  320
+    #define SCREEN_HEIGHT 224
+    #define SCREEN_BPP    9
+#elif defined(PLATFORM_3DO)
+    #define SCREEN_WIDTH  320
+    #define SCREEN_HEIGHT 240
+    #define SCREEN_BPP    16
+#elif defined(PLATFORM_GBA)
+    #define SCREEN_WIDTH  240
+    #define SCREEN_HEIGHT 160
+    #define SCREEN_BPP    15
+#elif defined(PLATFORM_NDS)
+    #define SCREEN_WIDTH  256
+    #define SCREEN_HEIGHT 192
+    #define SCREEN_BPP    18
 #else
     #define SCREEN_WIDTH  640
     #define SCREEN_HEIGHT 480

@@ -1,0 +1,45 @@
+# RetroRacer - 3DO Makefile
+# Uses 3DO SDK / ARM toolchain
+
+TOOLCHAIN = /opt/3do-sdk
+CC = $(TOOLCHAIN)/bin/armcc
+LD = $(TOOLCHAIN)/bin/armlink
+
+TARGET = retroracer_3do
+EXE = $(TARGET).exe
+ISO = $(TARGET).iso
+
+CFLAGS = -O2 -DPLATFORM_3DO
+CFLAGS += -I$(TOOLCHAIN)/include -Iinclude
+
+LDFLAGS = -L$(TOOLCHAIN)/lib
+
+LIBS = -lclib -lgraphics -laudio -lmath -lmem -lio -levent -lcontrolpad
+
+# Source files
+SRCS = src/main.c src/game.c src/vehicle.c src/track.c src/physics.c \
+       src/ai.c src/menu.c src/math3d.c \
+       src/platform/3do/render_3do.c \
+       src/platform/3do/input_3do.c \
+       src/platform/3do/audio_3do.c \
+       src/platform/3do/platform_3do.c
+
+OBJS = $(SRCS:.c=.o)
+
+.PHONY: all clean iso
+
+all: $(EXE)
+
+iso: $(ISO)
+
+$(ISO): $(EXE)
+	$(TOOLCHAIN)/bin/3doiso -o $@ $<
+
+$(EXE): $(OBJS)
+	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(OBJS) $(EXE) $(ISO)
