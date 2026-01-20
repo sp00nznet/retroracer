@@ -1,0 +1,55 @@
+# RetroRacer - Nintendo 64 Build
+# Requires libdragon SDK (github.com/DragonMinded/libdragon)
+#
+# Usage: make -f Makefile.n64
+
+include $(N64_INST)/include/n64.mk
+
+TARGET = retroracer
+BUILD_DIR = build_n64
+
+# Source files
+CORE_SRCS = src/game.c src/math3d.c src/track.c src/vehicle.c \
+            src/ai.c src/menu.c src/physics.c
+
+PLATFORM_SRCS = src/platform/n64/platform_n64.c \
+                src/platform/n64/render_n64.c \
+                src/platform/n64/input_n64.c \
+                src/platform/n64/audio_n64.c
+
+SRCS = $(CORE_SRCS) $(PLATFORM_SRCS)
+OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o)
+
+# Flags
+CFLAGS += -DN64 -DPLATFORM_N64 -I./include
+LDFLAGS += -lt3d
+
+all: $(TARGET).z64
+
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET).elf: $(OBJS)
+	$(LD) -o $@ $(OBJS) $(LDFLAGS) -ln64
+
+$(TARGET).z64: $(TARGET).elf
+	$(N64TOOL) $(N64TOOLFLAGS) -o $@ -t "RetroRacer" $<
+	$(CHKSUM64) $@
+
+# Create ROM filesystem for assets
+filesystem:
+	@mkdir -p filesystem/music
+	@mkdir -p filesystem/gfx
+	$(MKDFS) $(TARGET).dfs filesystem
+
+# Clean
+clean:
+	rm -rf $(BUILD_DIR)
+	rm -f $(TARGET).elf $(TARGET).z64 $(TARGET).dfs
+
+# Run in emulator
+run: $(TARGET).z64
+	ares $(TARGET).z64
+
+.PHONY: all filesystem clean run

@@ -1,6 +1,6 @@
 /*
  * RetroRacer - Platform Abstraction Layer
- * Supports: Dreamcast, PS1, PS2, PS3, Xbox
+ * Supports: Dreamcast, PS1, PS2, PS3, Xbox, N64, SNES
  */
 
 #ifndef PLATFORM_H
@@ -24,6 +24,12 @@
 #elif defined(XBOX) || defined(_XBOX)
     #define PLATFORM_XBOX 1
     #define PLATFORM_NAME "Xbox"
+#elif defined(N64) || defined(PLATFORM_N64)
+    #define PLATFORM_N64 1
+    #define PLATFORM_NAME "Nintendo 64"
+#elif defined(SNES) || defined(PLATFORM_SNES)
+    #define PLATFORM_SNES 1
+    #define PLATFORM_NAME "Super Nintendo"
 #else
     #define PLATFORM_NATIVE 1
     #define PLATFORM_NAME "Native"
@@ -50,6 +56,14 @@
     #define SCREEN_WIDTH  640
     #define SCREEN_HEIGHT 480
     #define SCREEN_BPP    16
+#elif defined(PLATFORM_N64)
+    #define SCREEN_WIDTH  320
+    #define SCREEN_HEIGHT 240
+    #define SCREEN_BPP    16
+#elif defined(PLATFORM_SNES)
+    #define SCREEN_WIDTH  256
+    #define SCREEN_HEIGHT 224
+    #define SCREEN_BPP    15
 #else
     #define SCREEN_WIDTH  640
     #define SCREEN_HEIGHT 480

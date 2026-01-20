@@ -1,0 +1,70 @@
+# RetroRacer - Super Nintendo (SNES) Build
+# Requires PVSnesLib (github.com/alekmaul/pvsneslib)
+#
+# Usage: make -f Makefile.snes
+
+ifeq ($(PVSNESLIB_HOME),)
+$(error PVSNESLIB_HOME is not set. Please set it to the PVSnesLib installation directory)
+endif
+
+include $(PVSNESLIB_HOME)/devkitsnes/snes_rules
+
+TARGET = retroracer
+
+# Directories
+BUILD_DIR = build_snes
+
+# Source files
+CORE_SRCS = src/game.c src/math3d.c src/track.c src/vehicle.c \
+            src/ai.c src/menu.c src/physics.c
+
+PLATFORM_SRCS = src/platform/snes/platform_snes.c \
+                src/platform/snes/render_snes.c \
+                src/platform/snes/input_snes.c \
+                src/platform/snes/audio_snes.c
+
+SRCS = $(CORE_SRCS) $(PLATFORM_SRCS)
+OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.obj)
+
+# Graphics resources
+GFX_FILES = data/track.pic data/sprites.pic data/font.pic
+PAL_FILES = data/track.pal data/sprites.pal data/font.pal
+
+# Music resources (SPC format)
+MUSIC_FILES = data/music.asm
+
+# Flags
+CFLAGS += -DSNES -DPLATFORM_SNES -I./include
+
+all: $(TARGET).sfc
+
+$(BUILD_DIR)/%.obj: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET).sfc: $(OBJS) $(GFX_FILES) $(PAL_FILES)
+	$(LD) $(LDFLAGS) -o $@ $(OBJS)
+
+# Convert graphics to SNES format
+data/%.pic: assets/%.png
+	@mkdir -p $(dir $@)
+	$(GFXCONV) -s 8 -o 16 -u 16 -p -e 1 -m -i $<
+
+data/%.pal: assets/%.png
+	@mkdir -p $(dir $@)
+	$(GFXCONV) -s 8 -o 16 -u 16 -p -e 1 -m -i $<
+
+# Mode 7 track tilemap
+data/track_m7.pic: assets/track_m7.png
+	$(GFXCONV) -s 8 -o 256 -u 256 -p -m7 -i $<
+
+# Clean
+clean:
+	rm -rf $(BUILD_DIR) data/
+	rm -f $(TARGET).sfc
+
+# Run in emulator
+run: $(TARGET).sfc
+	bsnes $(TARGET).sfc
+
+.PHONY: all clean run

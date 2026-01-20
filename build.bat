@@ -38,6 +38,8 @@ if "%1"=="ps1" goto :build_psx
 if "%1"=="ps2" goto :build_ps2
 if "%1"=="ps3" goto :build_ps3
 if "%1"=="xbox" goto :build_xbox
+if "%1"=="n64" goto :build_n64
+if "%1"=="snes" goto :build_snes
 if "%1"=="all" goto :build_all
 if "%1"=="clean" goto :clean_all
 
@@ -95,6 +97,22 @@ docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-xbox sh -c "make -f M
 echo [OK] Built: output\retroracer.xbe
 goto :end
 
+:build_n64
+echo [INFO] Building for Nintendo 64...
+docker build -t retroracer-n64 -f Dockerfile.n64 .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-n64 sh -c "make -f Makefile.n64 && cp retroracer.z64 /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer.z64
+goto :end
+
+:build_snes
+echo [INFO] Building for Super Nintendo...
+docker build -t retroracer-snes -f Dockerfile.snes .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-snes sh -c "make -f Makefile.snes && cp retroracer.sfc /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer.sfc
+goto :end
+
 :build_all
 echo [INFO] Building for ALL platforms...
 if not exist output mkdir output
@@ -104,6 +122,8 @@ call :build_psx
 call :build_ps2
 call :build_ps3
 call :build_xbox
+call :build_n64
+call :build_snes
 
 echo.
 echo === Build Complete ===
@@ -128,6 +148,8 @@ echo   psx        Build for PlayStation 1
 echo   ps2        Build for PlayStation 2
 echo   ps3        Build for PlayStation 3
 echo   xbox       Build for Original Xbox
+echo   n64        Build for Nintendo 64
+echo   snes       Build for Super Nintendo
 echo   all        Build for ALL platforms
 echo   clean      Remove all build artifacts
 echo.

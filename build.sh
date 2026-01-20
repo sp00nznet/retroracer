@@ -4,7 +4,7 @@
 # Builds for any platform using Docker (no SDK installation required)
 #
 # Usage: ./build.sh <platform>
-#   platform: dreamcast, psx, ps2, ps3, xbox, native, all
+#   platform: dreamcast, psx, ps2, ps3, xbox, n64, snes, native, all
 #
 
 set -e
@@ -60,9 +60,10 @@ build_native() {
 build_dreamcast() {
     log_info "Building for Dreamcast..."
     docker build -t retroracer-dc -f scripts/Dockerfile.dreamcast .
+    mkdir -p output
     docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-dc \
         sh -c "make clean && make && cp retroracer.elf retroracer.bin /output/ 2>/dev/null || cp retroracer.elf /output/"
-    log_success "Built: output/retroracer.elf"
+    log_success "Built: output/retroracer.elf (Dreamcast)"
 }
 
 build_psx() {
@@ -70,8 +71,8 @@ build_psx() {
     docker build -t retroracer-psx -f Dockerfile.psx .
     mkdir -p output
     docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-psx \
-        sh -c "make -f Makefile.psx clean 2>/dev/null; make -f Makefile.psx && cp retroracer.exe /output/ 2>/dev/null || echo 'Build artifacts in container'"
-    log_success "Built: output/retroracer.exe (PSX)"
+        sh -c "make -f Makefile.psx clean 2>/dev/null; make -f Makefile.psx && cp retroracer.exe /output/retroracer_psx.exe 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_psx.exe"
 }
 
 build_ps2() {
@@ -99,6 +100,24 @@ build_xbox() {
     docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-xbox \
         sh -c "make -f Makefile.xbox clean 2>/dev/null; make -f Makefile.xbox && cp retroracer.xbe /output/ 2>/dev/null || echo 'Build complete'"
     log_success "Built: output/retroracer.xbe"
+}
+
+build_n64() {
+    log_info "Building for Nintendo 64..."
+    docker build -t retroracer-n64 -f Dockerfile.n64 .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-n64 \
+        sh -c "make -f Makefile.n64 clean 2>/dev/null; make -f Makefile.n64 && cp retroracer.z64 /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer.z64"
+}
+
+build_snes() {
+    log_info "Building for Super Nintendo..."
+    docker build -t retroracer-snes -f Dockerfile.snes .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-snes \
+        sh -c "make -f Makefile.snes clean 2>/dev/null; make -f Makefile.snes && cp retroracer.sfc /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer.sfc"
 }
 
 build_all() {
@@ -146,6 +165,18 @@ build_all() {
         RESULTS+=("Xbox: ${RED}FAILED${NC}")
     fi
 
+    if build_n64; then
+        RESULTS+=("N64: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("N64: ${RED}FAILED${NC}")
+    fi
+
+    if build_snes; then
+        RESULTS+=("SNES: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("SNES: ${RED}FAILED${NC}")
+    fi
+
     echo ""
     echo -e "${CYAN}=== Build Results ===${NC}"
     for r in "${RESULTS[@]}"; do
@@ -160,7 +191,7 @@ clean_all() {
     log_info "Cleaning all build artifacts..."
     make -f Makefile.native clean 2>/dev/null || true
     rm -rf output/
-    docker rmi retroracer-dc retroracer-psx retroracer-ps2 retroracer-ps3 retroracer-xbox 2>/dev/null || true
+    docker rmi retroracer-dc retroracer-psx retroracer-ps2 retroracer-ps3 retroracer-xbox retroracer-n64 retroracer-snes 2>/dev/null || true
     log_success "Clean complete"
 }
 
@@ -178,11 +209,14 @@ if [ $# -eq 0 ]; then
     echo "  ps2        Build for PlayStation 2"
     echo "  ps3        Build for PlayStation 3"
     echo "  xbox       Build for Original Xbox"
+    echo "  n64        Build for Nintendo 64"
+    echo "  snes       Build for Super Nintendo"
     echo "  all        Build for ALL platforms"
     echo "  clean      Remove all build artifacts"
     echo ""
     echo "Examples:"
-    echo "  $0 ps2      # Build PS2 version"
+    echo "  $0 n64      # Build N64 version"
+    echo "  $0 snes     # Build SNES version"
     echo "  $0 all      # Build everything"
     exit 0
 fi
@@ -210,6 +244,14 @@ case "$1" in
     xbox)
         check_docker
         build_xbox
+        ;;
+    n64)
+        check_docker
+        build_n64
+        ;;
+    snes)
+        check_docker
+        build_snes
         ;;
     all)
         check_docker
