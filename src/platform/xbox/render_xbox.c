@@ -141,27 +141,76 @@ static int transform_vertex(vec3_t pos, float *sx, float *sy, float *sz) {
     return 1;
 }
 
+/* Software triangle rasterizer for Xbox framebuffer */
+static void rasterize_triangle_xbox(float x0, float y0, uint32_t c0,
+                                     float x1, float y1, uint32_t c1,
+                                     float x2, float y2, uint32_t c2) {
+    /* Sort vertices by Y coordinate */
+    if (y1 < y0) {
+        float t; t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t;
+        uint32_t tc; tc = c0; c0 = c1; c1 = tc;
+    }
+    if (y2 < y0) {
+        float t; t = x0; x0 = x2; x2 = t; t = y0; y0 = y2; y2 = t;
+        uint32_t tc; tc = c0; c0 = c2; c2 = tc;
+    }
+    if (y2 < y1) {
+        float t; t = x1; x1 = x2; x2 = t; t = y1; y1 = y2; y2 = t;
+        uint32_t tc; tc = c1; c1 = c2; c2 = tc;
+    }
+
+    /* Calculate slopes */
+    float dy01 = y1 - y0;
+    float dy02 = y2 - y0;
+    float dy12 = y2 - y1;
+
+    if (dy02 < 0.5f) return;  /* Degenerate triangle */
+
+    float dx01 = (dy01 > 0.5f) ? (x1 - x0) / dy01 : 0;
+    float dx02 = (x2 - x0) / dy02;
+    float dx12 = (dy12 > 0.5f) ? (x2 - x1) / dy12 : 0;
+
+    /* Use first vertex color for flat shading */
+    uint32_t color = c0 | 0xFF000000;
+
+    /* Rasterize top half */
+    float xa = x0, xb = x0;
+    for (int y = (int)y0; y < (int)y1 && y < fb_height; y++) {
+        if (y >= 0) {
+            int start_x = (int)((xa < xb) ? xa : xb);
+            int end_x = (int)((xa > xb) ? xa : xb);
+            if (start_x < 0) start_x = 0;
+            if (end_x > fb_width) end_x = fb_width;
+            /* Use pb_fill for each scanline */
+            if (end_x > start_x) {
+                pb_fill(start_x, y, end_x - start_x, 1, color);
+            }
+        }
+        xa += dx01;
+        xb += dx02;
+    }
+
+    /* Rasterize bottom half */
+    xa = x1;
+    for (int y = (int)y1; y < (int)y2 && y < fb_height; y++) {
+        if (y >= 0) {
+            int start_x = (int)((xa < xb) ? xa : xb);
+            int end_x = (int)((xa > xb) ? xa : xb);
+            if (start_x < 0) start_x = 0;
+            if (end_x > fb_width) end_x = fb_width;
+            if (end_x > start_x) {
+                pb_fill(start_x, y, end_x - start_x, 1, color);
+            }
+        }
+        xa += dx12;
+        xb += dx02;
+    }
+}
+
 void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
     if (!current_camera) return;
 
-    /*
-     * NV2A GPU rendering would use push buffer commands:
-     *
-     * pb_push(pb_begin, NV097_SET_BEGIN_END, 1);
-     * pb_push(pb_begin, NV097_TRIANGLES, 0);
-     *
-     * pb_push(pb_begin, NV097_SET_DIFFUSE_COLOR, 3);
-     * pb_push(pb_begin, v0->color);
-     * pb_push(pb_begin, v0->pos.x);
-     * pb_push(pb_begin, v0->pos.y);
-     * pb_push(pb_begin, v0->pos.z);
-     * ... repeat for v1, v2 ...
-     *
-     * pb_push(pb_begin, NV097_SET_BEGIN_END, 1);
-     * pb_push(pb_begin, NV097_END, 0);
-     */
-
-    /* For now, software rasterization fallback */
+    /* Transform vertices to screen space */
     float sx0, sy0, sz0;
     float sx1, sy1, sz1;
     float sx2, sy2, sz2;
@@ -170,11 +219,10 @@ void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
     if (!transform_vertex(v1->pos, &sx1, &sy1, &sz1)) return;
     if (!transform_vertex(v2->pos, &sx2, &sy2, &sz2)) return;
 
-    /* Simple edge-based rasterizer would go here */
-    (void)sx0; (void)sy0; (void)sz0;
-    (void)sx1; (void)sy1; (void)sz1;
-    (void)sx2; (void)sy2; (void)sz2;
-    (void)v0; (void)v1; (void)v2;
+    /* Rasterize the triangle */
+    rasterize_triangle_xbox(sx0, sy0, v0->color,
+                            sx1, sy1, v1->color,
+                            sx2, sy2, v2->color);
 }
 
 void render_draw_mesh(mesh_t *mesh, mat4_t transform) {

@@ -4,6 +4,9 @@
  *
  * Mode 7 provides hardware affine transformation of a single background
  * layer, allowing rotation and scaling for a pseudo-3D floor effect.
+ *
+ * Vehicles and objects are rendered as sprites since SNES cannot do
+ * arbitrary triangle rendering.
  */
 
 #include "render.h"
@@ -38,7 +41,7 @@ static int16_t m7_pos_y = 0;      /* Camera Y position (fixed point 8.8) */
 static uint8_t m7_angle = 0;      /* Camera angle (0-255 = 0-360 degrees) */
 static int16_t m7_scale = 256;    /* Base scale factor */
 
-/* Sin/Cos lookup table (256 entries, fixed point) */
+/* Sin/Cos lookup table (256 entries, fixed point 8.8) */
 static const int16_t sin_table[256] = {
     0, 6, 12, 18, 25, 31, 37, 43, 49, 56, 62, 68, 74, 80, 86, 92,
     97, 103, 109, 115, 120, 126, 131, 136, 142, 147, 152, 157, 162, 167, 171, 176,
@@ -64,41 +67,23 @@ static const int16_t sin_table[256] = {
 /* HDMA table for per-scanline Mode 7 scaling (perspective effect) */
 static uint8_t hdma_table[SCREEN_HEIGHT * 4];
 
-void render_init(void) {
-    /* Initialize SNES */
-    consoleInit();
+/* Sprite tracking for vehicles */
+#define MAX_SPRITES 32
+static int sprite_count = 0;
 
-    /* Set screen mode - Mode 7 */
-    setMode(BG_MODE7, 0);
+/* Mesh types for SNES */
+#define MESH_TYPE_VEHICLE 1
+#define MESH_TYPE_TRACK   2
+#define MESH_TYPE_OTHER   3
 
-    /* Enable Mode 7 on BG1 */
-    REG(REG_M7SEL) = 0x00;  /* No screen flip, no tiling */
-
-    /* Set up HDMA for per-scanline perspective scaling */
-    /* Channel 0: Update M7A and M7D (scaling) per scanline */
-
-    /* Initialize Mode 7 parameters */
-    REG(REG_M7A) = 0x01;  /* Scale X = 1.0 */
-    REG(REG_M7A) = 0x00;
-    REG(REG_M7B) = 0x00;  /* Shear = 0 */
-    REG(REG_M7B) = 0x00;
-    REG(REG_M7C) = 0x00;  /* Shear = 0 */
-    REG(REG_M7C) = 0x00;
-    REG(REG_M7D) = 0x01;  /* Scale Y = 1.0 */
-    REG(REG_M7D) = 0x00;
-
-    /* Set rotation center to screen center */
-    REG(REG_M7X) = (SCREEN_WIDTH / 2) & 0xFF;
-    REG(REG_M7X) = (SCREEN_WIDTH / 2) >> 8;
-    REG(REG_M7Y) = (SCREEN_HEIGHT / 2) & 0xFF;
-    REG(REG_M7Y) = (SCREEN_HEIGHT / 2) >> 8;
-
-    /* Build HDMA table for perspective effect */
-    build_perspective_table();
-
-    /* Enable screen */
-    setScreenOn();
-}
+/* Extended mesh for SNES with metadata */
+typedef struct {
+    int mesh_type;
+    uint32_t color;
+    float width;
+    float length;
+    int sprite_base;  /* Base sprite tile for vehicles */
+} snes_mesh_data_t;
 
 /* Build HDMA table for Mode 7 perspective (closer = more stretched) */
 static void build_perspective_table(void) {
@@ -124,8 +109,49 @@ static void build_perspective_table(void) {
     hdma_table[idx] = 0;
 }
 
+void render_init(void) {
+    /* Initialize SNES */
+    consoleInit();
+
+    /* Set screen mode - Mode 7 for BG1 (track), Mode 1 for sprites/BG2 */
+    setMode(BG_MODE7, 0);
+
+    /* Enable Mode 7 on BG1 */
+    REG(REG_M7SEL) = 0x00;  /* No screen flip, no tiling */
+
+    /* Initialize Mode 7 parameters */
+    REG(REG_M7A) = 0x01;  /* Scale X = 1.0 */
+    REG(REG_M7A) = 0x00;
+    REG(REG_M7B) = 0x00;  /* Shear = 0 */
+    REG(REG_M7B) = 0x00;
+    REG(REG_M7C) = 0x00;  /* Shear = 0 */
+    REG(REG_M7C) = 0x00;
+    REG(REG_M7D) = 0x01;  /* Scale Y = 1.0 */
+    REG(REG_M7D) = 0x00;
+
+    /* Set rotation center to screen center */
+    REG(REG_M7X) = (SCREEN_WIDTH / 2) & 0xFF;
+    REG(REG_M7X) = (SCREEN_WIDTH / 2) >> 8;
+    REG(REG_M7Y) = (SCREEN_HEIGHT / 2) & 0xFF;
+    REG(REG_M7Y) = (SCREEN_HEIGHT / 2) >> 8;
+
+    /* Build HDMA table for perspective effect */
+    build_perspective_table();
+
+    /* Initialize OAM (sprite) system */
+    oamInit();
+    oamSetEx(0, OBJ_SMALL, OBJ_SHOW);
+
+    /* Enable screen */
+    setScreenOn();
+}
+
 void render_begin_frame(void) {
     WaitForVBlank();
+
+    /* Reset sprite count for this frame */
+    sprite_count = 0;
+    oamClear(0, 0);  /* Clear all sprites */
 
     /* Update Mode 7 transformation matrix based on camera */
     if (current_camera) {
@@ -134,7 +160,11 @@ void render_begin_frame(void) {
         m7_pos_y = (int16_t)(current_camera->position.z * 256);
 
         /* Convert camera rotation to 0-255 angle */
-        m7_angle = (uint8_t)(current_camera->rotation_y * 256 / (2 * 3.14159f));
+        /* Calculate angle from camera direction */
+        float dx = current_camera->target.x - current_camera->position.x;
+        float dz = current_camera->target.z - current_camera->position.z;
+        float angle_rad = atan2f(dx, dz);
+        m7_angle = (uint8_t)(angle_rad * 256.0f / (2.0f * 3.14159f));
     }
 
     /* Calculate Mode 7 matrix from angle */
@@ -142,11 +172,6 @@ void render_begin_frame(void) {
     int16_t sin_a = SIN(m7_angle);
 
     /* Set Mode 7 matrix (rotation + scale) */
-    /* A = cos(angle) * scale */
-    /* B = sin(angle) * scale */
-    /* C = -sin(angle) * scale */
-    /* D = cos(angle) * scale */
-
     int16_t m7a = (cos_a * m7_scale) >> 8;
     int16_t m7b = (sin_a * m7_scale) >> 8;
     int16_t m7c = (-sin_a * m7_scale) >> 8;
@@ -169,11 +194,12 @@ void render_begin_frame(void) {
 }
 
 void render_end_frame(void) {
-    /* Frame complete - wait for VBlank handled in begin_frame */
+    /* Copy OAM data to PPU */
+    oamUpdate();
 }
 
 void render_begin_hud(void) {
-    /* HUD uses sprites on SNES */
+    /* HUD uses BG2/BG3 text layer on SNES */
 }
 
 void render_end_hud(void) {
@@ -200,31 +226,145 @@ void render_set_camera(camera_t *cam) {
 
 void camera_update(camera_t *cam) {
     /* Store rotation for Mode 7 */
-    /* Note: Mode 7 is 2D transformation, so we only use Y rotation */
     cam->view_matrix = mat4_look_at(cam->position, cam->target, cam->up);
     cam->proj_matrix = mat4_identity();  /* Mode 7 handles projection */
 }
 
 /*
- * On SNES, 3D geometry is not directly supported.
- * Vehicles and objects are rendered as sprites.
- * The track is a Mode 7 transformed tilemap.
+ * Project a 3D world position to SNES screen coordinates
+ * Returns 0 if behind camera, 1 if visible
  */
+static int project_to_screen(vec3_t world_pos, int *screen_x, int *screen_y, int *depth) {
+    if (!current_camera) return 0;
 
+    /* Transform to camera space */
+    vec3_t rel;
+    rel.x = world_pos.x - current_camera->position.x;
+    rel.y = world_pos.y - current_camera->position.y;
+    rel.z = world_pos.z - current_camera->position.z;
+
+    /* Rotate by camera angle (simplified 2D rotation for Mode 7 style) */
+    float angle_rad = (float)m7_angle * (2.0f * 3.14159f) / 256.0f;
+    float cos_a = cosf(angle_rad);
+    float sin_a = sinf(angle_rad);
+
+    float cam_x = rel.x * cos_a - rel.z * sin_a;
+    float cam_z = rel.x * sin_a + rel.z * cos_a;
+
+    /* Check if in front of camera */
+    if (cam_z < 1.0f) return 0;
+
+    /* Simple perspective projection */
+    float inv_z = 128.0f / cam_z;  /* FOV factor */
+
+    *screen_x = (int)(SCREEN_WIDTH / 2 + cam_x * inv_z);
+    *screen_y = (int)(HORIZON_LINE + (current_camera->position.y - world_pos.y + 2.0f) * inv_z);
+    *depth = (int)(cam_z * 4);  /* For sprite priority */
+
+    /* Clamp to screen bounds check */
+    if (*screen_x < -32 || *screen_x > SCREEN_WIDTH + 32) return 0;
+    if (*screen_y < -32 || *screen_y > SCREEN_HEIGHT + 32) return 0;
+
+    return 1;
+}
+
+/*
+ * On SNES, triangles cannot be directly rendered.
+ * This function projects the triangle center and draws a sprite if appropriate.
+ */
 void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
-    /* SNES cannot render arbitrary triangles */
-    /* This would need to be pre-rendered sprites */
+    /* SNES cannot render arbitrary triangles - this is called by the grass
+     * rendering in track.c. We handle the ground via Mode 7 instead.
+     * Individual triangles are ignored - the game still runs, just uses
+     * Mode 7 for the ground instead of triangle-based grass. */
     (void)v0; (void)v1; (void)v2;
 }
 
+/*
+ * Draw a mesh as a sprite on SNES
+ * Meshes are converted to sprites with distance-based scaling
+ */
 void render_draw_mesh(mesh_t *mesh, mat4_t transform) {
-    /* Meshes not supported - use sprites instead */
-    (void)mesh; (void)transform;
+    if (!mesh || !current_camera) return;
+    if (sprite_count >= MAX_SPRITES) return;
+
+    /* Get mesh metadata */
+    snes_mesh_data_t *data = (snes_mesh_data_t *)mesh->triangles;
+    if (!data) return;
+
+    /* Extract position from transform matrix */
+    vec3_t world_pos;
+    world_pos.x = transform.m[12];
+    world_pos.y = transform.m[13];
+    world_pos.z = transform.m[14];
+
+    /* Project to screen */
+    int screen_x, screen_y, depth;
+    if (!project_to_screen(world_pos, &screen_x, &screen_y, &depth)) return;
+
+    /* Select sprite size based on distance */
+    int sprite_size;
+    int tile_offset;
+
+    if (depth < 16) {
+        /* Close - large sprite (32x32) */
+        sprite_size = OBJ_SIZE32_64;
+        tile_offset = 0;
+        screen_x -= 16;
+        screen_y -= 16;
+    } else if (depth < 48) {
+        /* Medium distance - medium sprite (16x16) */
+        sprite_size = OBJ_SIZE16_32;
+        tile_offset = 32;  /* Different tiles for smaller version */
+        screen_x -= 8;
+        screen_y -= 8;
+    } else {
+        /* Far - small sprite (8x8) */
+        sprite_size = OBJ_SIZE8_16;
+        tile_offset = 64;
+        screen_x -= 4;
+        screen_y -= 4;
+    }
+
+    /* Calculate sprite palette from mesh color */
+    int palette = 0;
+    uint8_t r = (data->color >> 16) & 0xFF;
+    uint8_t g = (data->color >> 8) & 0xFF;
+    uint8_t b = data->color & 0xFF;
+
+    /* Simple palette selection based on dominant color */
+    if (r > g && r > b) palette = 1;       /* Red palette */
+    else if (g > r && g > b) palette = 2;  /* Green palette */
+    else if (b > r && b > g) palette = 3;  /* Blue palette */
+    else palette = 0;                       /* Default/yellow palette */
+
+    /* Calculate sprite priority (lower depth = higher priority) */
+    int priority = 3;  /* Default high priority */
+    if (depth > 32) priority = 2;
+    if (depth > 64) priority = 1;
+
+    /* Draw sprite */
+    int sprite_id = sprite_count++;
+    int tile = data->sprite_base + tile_offset;
+
+    oamSet(sprite_id, screen_x, screen_y, priority, 0, 0, tile, palette);
+    oamSetEx(sprite_id, sprite_size, OBJ_SHOW);
 }
 
 void render_draw_quad(vec3_t pos, float width, float height, uint32_t color) {
-    /* Could be implemented as a sprite */
-    (void)pos; (void)width; (void)height; (void)color;
+    /* Quads used for start/finish line - draw as sprite */
+    if (!current_camera) return;
+    if (sprite_count >= MAX_SPRITES) return;
+
+    int screen_x, screen_y, depth;
+    if (!project_to_screen(pos, &screen_x, &screen_y, &depth)) return;
+
+    /* Draw a simple horizontal line sprite */
+    int sprite_id = sprite_count++;
+    oamSet(sprite_id, screen_x - 16, screen_y, 2, 0, 0, 96, 0);  /* White tile */
+    oamSetEx(sprite_id, OBJ_SIZE32_64, OBJ_SHOW);
+
+    (void)width; (void)height; (void)color;
 }
 
 void render_wait_vram_ready(void) {
@@ -232,83 +372,103 @@ void render_wait_vram_ready(void) {
 }
 
 void render_draw_sky_background(uint32_t color) {
-    /* Sky is drawn above the horizon line using BG2/3 */
-    /* Or simply the backdrop color */
+    /* Sky is the backdrop color above the Mode 7 horizon */
     render_clear(color);
 }
 
 void render_draw_rect_2d(int x, int y, int w, int h, uint32_t color) {
-    /* 2D rectangles done via sprites or tile manipulation */
-    (void)x; (void)y; (void)w; (void)h; (void)color;
+    /* 2D rectangles for HUD - use sprites or just skip on SNES */
+    /* For now, minimal implementation using a sprite */
+    if (sprite_count >= MAX_SPRITES) return;
+
+    int sprite_id = sprite_count++;
+    int palette = 0;
+
+    /* Simple color to palette mapping */
+    uint8_t r = (color >> 16) & 0xFF;
+    if (r > 200) palette = 1;  /* Bright = white/yellow */
+
+    /* Draw sprite at position (limited size) */
+    oamSet(sprite_id, x, y, 3, 0, 0, 100, palette);
+    oamSetEx(sprite_id, OBJ_SIZE8_16, OBJ_SHOW);
+
+    (void)w; (void)h;
 }
 
 void render_draw_text(int x, int y, uint32_t color, const char *text) {
-    /* Use a tilemap layer for text, or sprites */
-    /* PVSnesLib has consoleDrawText() */
-    consoleDrawText(x / 8, y / 8, text);
+    /* Use PVSnesLib's console text function */
+    int tile_x = x / 8;
+    int tile_y = y / 8;
+
+    if (tile_x >= 0 && tile_x < 32 && tile_y >= 0 && tile_y < 28) {
+        consoleDrawText(tile_x, tile_y, "%s", text);
+    }
+
     (void)color;
 }
 
 /*
- * SNES-specific sprite rendering for vehicles
- */
-void render_draw_sprite(int x, int y, int sprite_id, int palette, int flip_h, int flip_v) {
-    /* OAM (Object Attribute Memory) sprite entry */
-    /* X position, Y position, tile number, attributes */
-
-    uint8_t attr = palette << 1;
-    if (flip_h) attr |= 0x40;
-    if (flip_v) attr |= 0x80;
-
-    oamSet(sprite_id, x, y, 0, flip_h, flip_v, sprite_id, palette);
-}
-
-/*
- * Draw vehicle as scaled sprite (SNES limitation - no true 3D)
- * Uses multiple sprite sizes for distance-based scaling
- */
-void render_draw_vehicle_sprite(int screen_x, int screen_y, int distance, int vehicle_type, int angle) {
-    /* Select sprite size based on distance */
-    int sprite_size;
-    int sprite_base;
-
-    if (distance < 32) {
-        sprite_size = OBJ_SIZE32_64;
-        sprite_base = vehicle_type * 16;  /* Large sprites */
-    } else if (distance < 64) {
-        sprite_size = OBJ_SIZE16_32;
-        sprite_base = vehicle_type * 16 + 256;  /* Medium sprites */
-    } else {
-        sprite_size = OBJ_SIZE8_16;
-        sprite_base = vehicle_type * 16 + 512;  /* Small sprites */
-    }
-
-    /* Select frame based on view angle (8 or 16 angles) */
-    int frame = (angle >> 5) & 0x07;
-
-    oamSet(0, screen_x - 16, screen_y - 16, 3, 0, 0, sprite_base + frame, 0);
-}
-
-/*
- * Mesh creation stubs - SNES uses pre-made sprite graphics
+ * SNES mesh creation - returns a mesh_t with embedded SNES-specific data
+ * Instead of actual triangles, we store sprite metadata
  */
 mesh_t *mesh_create_cube(float size, uint32_t color) {
-    (void)size; (void)color;
-    return NULL;  /* Not applicable for SNES */
+    mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
+    snes_mesh_data_t *data = (snes_mesh_data_t *)malloc(sizeof(snes_mesh_data_t));
+
+    data->mesh_type = MESH_TYPE_OTHER;
+    data->color = color;
+    data->width = size;
+    data->length = size;
+    data->sprite_base = 0;  /* Default sprite tiles */
+
+    mesh->triangles = (triangle_t *)data;  /* Store our data in triangles pointer */
+    mesh->tri_count = 0;  /* No actual triangles */
+    mesh->base_color = color;
+
+    return mesh;
 }
 
 mesh_t *mesh_create_vehicle(uint32_t color) {
-    (void)color;
-    return NULL;  /* Vehicles are sprites on SNES */
+    mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
+    snes_mesh_data_t *data = (snes_mesh_data_t *)malloc(sizeof(snes_mesh_data_t));
+
+    data->mesh_type = MESH_TYPE_VEHICLE;
+    data->color = color;
+    data->width = 0.8f;
+    data->length = 1.5f;
+    data->sprite_base = 0;  /* Vehicle sprite tiles start at 0 */
+
+    mesh->triangles = (triangle_t *)data;
+    mesh->tri_count = 0;
+    mesh->base_color = color;
+
+    return mesh;
 }
 
 mesh_t *mesh_create_track_segment(float width, float length, uint32_t color) {
-    (void)width; (void)length; (void)color;
-    return NULL;  /* Track is Mode 7 tilemap */
+    /* Track segments are handled by Mode 7, but we still need a valid mesh
+     * for the track rendering code to not crash */
+    mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
+    snes_mesh_data_t *data = (snes_mesh_data_t *)malloc(sizeof(snes_mesh_data_t));
+
+    data->mesh_type = MESH_TYPE_TRACK;
+    data->color = color;
+    data->width = width;
+    data->length = length;
+    data->sprite_base = 80;  /* Track marker sprites */
+
+    mesh->triangles = (triangle_t *)data;
+    mesh->tri_count = 0;
+    mesh->base_color = color;
+
+    return mesh;
 }
 
 void mesh_destroy(mesh_t *mesh) {
-    (void)mesh;
+    if (mesh) {
+        if (mesh->triangles) free(mesh->triangles);
+        free(mesh);
+    }
 }
 
 #endif /* PLATFORM_SNES */

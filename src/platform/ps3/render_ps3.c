@@ -199,6 +199,72 @@ static int transform_vertex(vec3_t pos, float *sx, float *sy, float *sz) {
     return 1;
 }
 
+/* Software triangle rasterizer - fills triangles to framebuffer */
+static void rasterize_triangle(u32 *buffer,
+                                float x0, float y0, u32 c0,
+                                float x1, float y1, u32 c1,
+                                float x2, float y2, u32 c2) {
+    /* Sort vertices by Y coordinate */
+    if (y1 < y0) {
+        float t; t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t;
+        u32 tc; tc = c0; c0 = c1; c1 = tc;
+    }
+    if (y2 < y0) {
+        float t; t = x0; x0 = x2; x2 = t; t = y0; y0 = y2; y2 = t;
+        u32 tc; tc = c0; c0 = c2; c2 = tc;
+    }
+    if (y2 < y1) {
+        float t; t = x1; x1 = x2; x2 = t; t = y1; y1 = y2; y2 = t;
+        u32 tc; tc = c1; c1 = c2; c2 = tc;
+    }
+
+    /* Calculate slopes */
+    float dy01 = y1 - y0;
+    float dy02 = y2 - y0;
+    float dy12 = y2 - y1;
+
+    if (dy02 < 0.5f) return;  /* Degenerate triangle */
+
+    float dx01 = (dy01 > 0.5f) ? (x1 - x0) / dy01 : 0;
+    float dx02 = (x2 - x0) / dy02;
+    float dx12 = (dy12 > 0.5f) ? (x2 - x1) / dy12 : 0;
+
+    /* Use average color for flat shading (simpler) */
+    u32 color = c0;  /* Could blend c0, c1, c2 for gouraud */
+
+    /* Rasterize top half */
+    float xa = x0, xb = x0;
+    for (int y = (int)y0; y < (int)y1 && y < (int)rsx_height; y++) {
+        if (y >= 0) {
+            int start_x = (int)((xa < xb) ? xa : xb);
+            int end_x = (int)((xa > xb) ? xa : xb);
+            if (start_x < 0) start_x = 0;
+            if (end_x > (int)rsx_width) end_x = rsx_width;
+            for (int x = start_x; x < end_x; x++) {
+                buffer[y * rsx_width + x] = color;
+            }
+        }
+        xa += dx01;
+        xb += dx02;
+    }
+
+    /* Rasterize bottom half */
+    xa = x1;
+    for (int y = (int)y1; y < (int)y2 && y < (int)rsx_height; y++) {
+        if (y >= 0) {
+            int start_x = (int)((xa < xb) ? xa : xb);
+            int end_x = (int)((xa > xb) ? xa : xb);
+            if (start_x < 0) start_x = 0;
+            if (end_x > (int)rsx_width) end_x = rsx_width;
+            for (int x = start_x; x < end_x; x++) {
+                buffer[y * rsx_width + x] = color;
+            }
+        }
+        xa += dx12;
+        xb += dx02;
+    }
+}
+
 void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
     if (!current_camera) return;
 
@@ -210,24 +276,15 @@ void render_draw_triangle(vertex_t *v0, vertex_t *v1, vertex_t *v2) {
     if (!transform_vertex(v1->pos, &sx1, &sy1, &sz1)) return;
     if (!transform_vertex(v2->pos, &sx2, &sy2, &sz2)) return;
 
-    /* Submit triangle using immediate mode */
-    /* In production, would batch vertices and use vertex buffers */
-
-    rsxSetShadeModel(rsx_context, GCM_SHADE_MODEL_SMOOTH);
-
-    /* Draw using inline primitive data */
-    /* This is inefficient but works for demonstration */
+    /* Get framebuffer and rasterize */
     u32 *buffer = rsx_buffer[current_buffer];
 
-    /* Simple software rasterization fallback */
-    /* In real implementation, use RSX vertex/fragment shaders */
+    /* Convert colors to ARGB format */
+    u32 c0 = v0->color | 0xFF000000;
+    u32 c1 = v1->color | 0xFF000000;
+    u32 c2 = v2->color | 0xFF000000;
 
-    /* For now, just mark the pixels - proper RSX shader setup needed */
-    (void)buffer;
-    (void)sx0; (void)sy0; (void)sz0;
-    (void)sx1; (void)sy1; (void)sz1;
-    (void)sx2; (void)sy2; (void)sz2;
-    (void)v0; (void)v1; (void)v2;
+    rasterize_triangle(buffer, sx0, sy0, c0, sx1, sy1, c1, sx2, sy2, c2);
 }
 
 void render_draw_mesh(mesh_t *mesh, mat4_t transform) {
