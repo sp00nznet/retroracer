@@ -1,0 +1,13 @@
+# RetroRacer - PlayStation 2 Build Container
+# One-click build using PS2SDK
+
+FROM ps2dev/ps2dev:latest
+
+# PS2SDK is pre-installed in this image
+# Environment variables already set: PS2SDK, PS2DEV
+
+WORKDIR /build
+COPY . .
+
+# Build command
+CMD ["make", "-f", "Makefile.ps2"]

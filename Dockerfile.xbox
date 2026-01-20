@@ -1,0 +1,34 @@
+# RetroRacer - Original Xbox Build Container
+# One-click build using nxdk
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    llvm \
+    clang \
+    lld \
+    python3 \
+    flex \
+    bison \
+    libsdl2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install nxdk
+ENV NXDK_DIR=/opt/nxdk
+WORKDIR /opt
+RUN git clone --recursive https://github.com/XboxDev/nxdk.git && \
+    cd nxdk && \
+    make
+
+ENV PATH="${NXDK_DIR}/bin:${PATH}"
+
+WORKDIR /build
+COPY . .
+
+CMD ["make", "-f", "Makefile.xbox"]

@@ -1,0 +1,35 @@
+# RetroRacer - PlayStation 1 Build Container
+# One-click build using PSn00bSDK (open source PSX SDK)
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    ninja-build \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PSn00bSDK
+WORKDIR /opt
+RUN git clone https://github.com/Lameguy64/PSn00bSDK.git && \
+    cd PSn00bSDK && \
+    git submodule update --init --recursive && \
+    cmake --preset default . && \
+    cmake --build ./build && \
+    cmake --install ./build
+
+ENV PSN00BSDK_LIBS=/usr/local/lib/libpsn00b
+ENV PATH="/usr/local/bin:${PATH}"
+
+# Build directory
+WORKDIR /build
+COPY . .
+
+# Build command
+CMD ["make", "-f", "Makefile.psx"]

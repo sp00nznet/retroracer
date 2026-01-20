@@ -1,0 +1,48 @@
+# RetroRacer - PlayStation 3 Build Container
+# One-click build using PSL1GHT SDK
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    autoconf \
+    automake \
+    bison \
+    flex \
+    libelf-dev \
+    libtool \
+    pkg-config \
+    texinfo \
+    libgmp-dev \
+    libmpfr-dev \
+    libmpc-dev \
+    zlib1g-dev \
+    git \
+    wget \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up PS3 dev environment
+ENV PS3DEV=/usr/local/ps3dev
+ENV PSL1GHT=$PS3DEV/psl1ght
+ENV PATH="$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin:$PATH"
+
+# Install ps3toolchain
+WORKDIR /opt
+RUN git clone https://github.com/ps3dev/ps3toolchain.git && \
+    cd ps3toolchain && \
+    ./toolchain.sh
+
+# Install PSL1GHT
+RUN git clone https://github.com/ps3dev/PSL1GHT.git $PSL1GHT && \
+    cd $PSL1GHT && \
+    make && \
+    make install
+
+WORKDIR /build
+COPY . .
+
+CMD ["make", "-f", "Makefile.ps3"]
