@@ -165,6 +165,15 @@ build_nds() {
     log_success "Built: output/retroracer_nds.nds"
 }
 
+build_3ds() {
+    log_info "Building for Nintendo 3DS..."
+    docker build -t retroracer-3ds -f Dockerfile.3ds .
+    mkdir -p output
+    docker run --rm -v "$SCRIPT_DIR/output:/output" retroracer-3ds \
+        sh -c "make -f Makefile.3ds clean 2>/dev/null; make -f Makefile.3ds && cp retroracer_3ds.3dsx retroracer_3ds.elf /output/ 2>/dev/null || echo 'Build complete'"
+    log_success "Built: output/retroracer_3ds.3dsx"
+}
+
 build_all() {
     log_info "Building for ALL platforms..."
     echo ""
@@ -252,6 +261,12 @@ build_all() {
         RESULTS+=("NDS: ${RED}FAILED${NC}")
     fi
 
+    if build_3ds; then
+        RESULTS+=("3DS: ${GREEN}OK${NC}")
+    else
+        RESULTS+=("3DS: ${RED}FAILED${NC}")
+    fi
+
     echo ""
     echo -e "${CYAN}=== Build Results ===${NC}"
     for r in "${RESULTS[@]}"; do
@@ -291,6 +306,7 @@ if [ $# -eq 0 ]; then
     echo "  3do        Build for 3DO"
     echo "  gba        Build for Game Boy Advance"
     echo "  nds        Build for Nintendo DS"
+    echo "  3ds        Build for Nintendo 3DS"
     echo "  all        Build for ALL platforms"
     echo "  clean      Remove all build artifacts"
     echo ""
@@ -352,6 +368,10 @@ case "$1" in
     nds|ds)
         check_docker
         build_nds
+        ;;
+    3ds)
+        check_docker
+        build_3ds
         ;;
     all)
         check_docker

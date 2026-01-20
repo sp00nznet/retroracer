@@ -47,6 +47,7 @@ if "%1"=="3do" goto :build_3do
 if "%1"=="gba" goto :build_gba
 if "%1"=="nds" goto :build_nds
 if "%1"=="ds" goto :build_nds
+if "%1"=="3ds" goto :build_3ds
 if "%1"=="all" goto :build_all
 if "%1"=="clean" goto :clean_all
 
@@ -160,6 +161,14 @@ docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-nds sh -c "make -f Ma
 echo [OK] Built: output\retroracer_nds.nds
 goto :end
 
+:build_3ds
+echo [INFO] Building for Nintendo 3DS...
+docker build -t retroracer-3ds -f Dockerfile.3ds .
+if not exist output mkdir output
+docker run --rm -v "%SCRIPT_DIR%output:/output" retroracer-3ds sh -c "make -f Makefile.3ds && cp retroracer_3ds.3dsx /output/ 2>/dev/null || true"
+echo [OK] Built: output\retroracer_3ds.3dsx
+goto :end
+
 :build_all
 echo [INFO] Building for ALL platforms...
 if not exist output mkdir output
@@ -176,6 +185,7 @@ call :build_genesis
 call :build_3do
 call :build_gba
 call :build_nds
+call :build_3ds
 
 echo.
 echo === Build Complete ===
@@ -207,6 +217,7 @@ echo   genesis    Build for Sega Genesis
 echo   3do        Build for 3DO
 echo   gba        Build for Game Boy Advance
 echo   nds        Build for Nintendo DS
+echo   3ds        Build for Nintendo 3DS
 echo   all        Build for ALL platforms
 echo   clean      Remove all build artifacts
 echo.

@@ -1,0 +1,19 @@
+# RetroRacer - Nintendo 3DS Build Environment
+# Uses devkitARM / libctru / citro3d
+
+FROM devkitpro/devkitarm:latest
+
+ENV DEVKITPRO=/opt/devkitpro
+ENV DEVKITARM=${DEVKITPRO}/devkitARM
+ENV PATH="${DEVKITARM}/bin:${PATH}"
+
+# Install 3DS development libraries
+RUN dkp-pacman -Sy --noconfirm 3ds-dev libctru citro3d citro2d
+
+WORKDIR /src
+COPY . .
+
+# Create romfs directory if it doesn't exist
+RUN mkdir -p romfs
+
+CMD ["make", "-f", "Makefile.3ds"]

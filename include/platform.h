@@ -1,6 +1,6 @@
 /*
  * RetroRacer - Platform Abstraction Layer
- * Supports: Dreamcast, PS1, PS2, PS3, Xbox, Xbox 360, N64, SNES, Genesis, 3DO, GBA, NDS
+ * Supports: Dreamcast, PS1, PS2, PS3, Xbox, Xbox 360, N64, SNES, Genesis, 3DO, GBA, NDS, 3DS
  */
 
 #ifndef PLATFORM_H
@@ -45,6 +45,9 @@
 #elif defined(NDS) || defined(ARM9) || defined(PLATFORM_NDS)
     #define PLATFORM_NDS 1
     #define PLATFORM_NAME "Nintendo DS"
+#elif defined(__3DS__) || defined(_3DS) || defined(PLATFORM_3DS)
+    #define PLATFORM_3DS 1
+    #define PLATFORM_NAME "Nintendo 3DS"
 #else
     #define PLATFORM_NATIVE 1
     #define PLATFORM_NAME "Native"
@@ -99,6 +102,10 @@
     #define SCREEN_WIDTH  256
     #define SCREEN_HEIGHT 192
     #define SCREEN_BPP    18
+#elif defined(PLATFORM_3DS)
+    #define SCREEN_WIDTH  400
+    #define SCREEN_HEIGHT 240
+    #define SCREEN_BPP    24
 #else
     #define SCREEN_WIDTH  640
     #define SCREEN_HEIGHT 480
