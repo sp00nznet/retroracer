@@ -11,11 +11,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef DREAMCAST
-#include <kos.h>
-#include <dc/biosfont.h>
-#include <dc/video.h>
-#endif
 
 static menu_state_t menu_state;
 static int menu_active = 1;
@@ -365,43 +360,9 @@ void menu_update(input_state_t *input, float dt) {
     }
 }
 
-/* Draw text directly to VRAM (for menu rendering) */
-static void draw_menu_text(int x, int y, uint32_t color, const char *text) {
-#ifdef DREAMCAST
-    bfont_set_foreground_color(color);
-    bfont_draw_str(vram_s + y * 640 + x, 640, 0, text);
-#else
-    (void)x; (void)y; (void)color;
-    printf("%s\n", text);
-#endif
-}
-
-/* Fill screen with solid color (for menu background) */
-static void fill_screen(uint32_t color) {
-#ifdef DREAMCAST
-    uint16_t col16 = ((color >> 8) & 0xF800) |  /* R */
-                     ((color >> 5) & 0x07E0) |  /* G */
-                     ((color >> 3) & 0x001F);   /* B */
-
-    uint16_t *vram = vram_s;
-    for (int i = 0; i < 640 * 480; i++) {
-        vram[i] = col16;
-    }
-#else
-    (void)color;
-#endif
-}
 
 void menu_render(void) {
-#ifdef DREAMCAST
-    /* For menu, we bypass PVR and draw directly to VRAM */
-    /* Wait for any PVR operations to complete */
-    vid_waitvbl();
-
-    /* Fill background with dark blue */
-    fill_screen(PACK_COLOR(255, 20, 20, 60));
-#endif
-
+    /* Menu renders via PVR - caller must set up PVR frame and HUD mode */
     int screen_w = 640;
     int screen_h = 480;
     int center_x = screen_w / 2;
@@ -409,11 +370,11 @@ void menu_render(void) {
     /* Draw title */
     const char *title = screen_titles[menu_state.current_screen];
     int title_x = center_x - (int)(strlen(title) * 6);
-    draw_menu_text(title_x, 60, COLOR_YELLOW, title);
+    render_draw_text(title_x, 60, COLOR_YELLOW, title);
 
     /* Draw subtitle based on screen */
     if (menu_state.current_screen == MENU_MAIN) {
-        draw_menu_text(center_x - 110, 100, COLOR_WHITE, "Dreamcast Racing Game");
+        render_draw_text(center_x - 110, 100, COLOR_WHITE, "Dreamcast Racing Game");
     }
 
     /* Draw menu items */
@@ -429,13 +390,13 @@ void menu_render(void) {
         if (i == menu_state.selected_index) {
             color = COLOR_YELLOW;
             /* Draw selection indicator */
-            draw_menu_text(x - 20, y, COLOR_YELLOW, ">");
+            render_draw_text(x - 20, y, COLOR_YELLOW, ">");
         }
         if (!item->enabled) {
             color = COLOR_GRAY;
         }
 
-        draw_menu_text(x, y, color, item->text);
+        render_draw_text(x, y, color, item->text);
     }
 
     /* Draw mode-specific info */
@@ -447,7 +408,7 @@ void menu_render(void) {
             case 2: desc = "Beat the best lap time"; break;
             case 3: desc = "4-race championship"; break;
         }
-        draw_menu_text(center_x - 130, 380, COLOR_GRAY, desc);
+        render_draw_text(center_x - 130, 380, COLOR_GRAY, desc);
     }
 
     /* Draw options screen info */
@@ -457,17 +418,17 @@ void menu_render(void) {
 
         /* Show current track */
         sprintf(buf, "Current: %s", audio_get_track_name(audio->current_track));
-        draw_menu_text(center_x - 100, 350, COLOR_CYAN, buf);
+        render_draw_text(center_x - 100, 350, COLOR_CYAN, buf);
 
         /* Show volume bars */
         sprintf(buf, "Music Vol: %d%%", audio->music_volume);
-        draw_menu_text(center_x + 80, 180 + 30, COLOR_GRAY, buf);
+        render_draw_text(center_x + 80, 180 + 30, COLOR_GRAY, buf);
 
         sprintf(buf, "SFX Vol: %d%%", audio->sfx_volume);
-        draw_menu_text(center_x + 80, 180 + 60, COLOR_GRAY, buf);
+        render_draw_text(center_x + 80, 180 + 60, COLOR_GRAY, buf);
 
         /* Controls hint for volumes */
-        draw_menu_text(center_x - 120, 400, COLOR_GRAY, "L/R to adjust volume");
+        render_draw_text(center_x - 120, 400, COLOR_GRAY, "L/R to adjust volume");
     }
 
     /* Draw music select screen info */
@@ -478,20 +439,20 @@ void menu_render(void) {
 
         /* Show artist */
         sprintf(buf, "Artist: %s", audio_get_track_artist(selected));
-        draw_menu_text(center_x - 80, 380, COLOR_CYAN, buf);
+        render_draw_text(center_x - 80, 380, COLOR_CYAN, buf);
 
         /* Show BPM */
         sprintf(buf, "BPM: %d", audio_get_track_bpm(selected));
-        draw_menu_text(center_x - 40, 410, COLOR_GRAY, buf);
+        render_draw_text(center_x - 40, 410, COLOR_GRAY, buf);
 
         /* Playing indicator */
         if (audio->is_playing && audio->current_track == selected) {
-            draw_menu_text(center_x - 40, 350, COLOR_GREEN, "NOW PLAYING");
+            render_draw_text(center_x - 40, 350, COLOR_GREEN, "NOW PLAYING");
         }
     }
 
     /* Draw controls hint */
-    draw_menu_text(20, screen_h - 40, COLOR_GRAY, "A:Select B:Back D-Pad:Navigate");
+    render_draw_text(20, screen_h - 40, COLOR_GRAY, "A:Select B:Back D-Pad:Navigate");
 }
 
 int menu_is_active(void) {

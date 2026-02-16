@@ -8,6 +8,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
+
+/* Tile road length after 12x scale: tile Z range is [-6,6] = 12 units */
+#define TILE_ROAD_LENGTH 12.0f
+#define PI_F 3.14159265f
 
 /* Simple PRNG for procedural generation */
 static uint32_t track_rand_state = 12345;
@@ -135,17 +140,35 @@ track_t *track_generate(track_params_t *params) {
         seg->end_pos = vec3_add(current_pos, vec3_scale(dir, seg->length));
         seg->end_pos.y += seg->elevation_change;
 
-        /* Create segment mesh */
-        uint32_t road_color = COLOR_ASPHALT;
-        if (i % 2 == 0) {
-            /* Slightly different shade for visual variety */
-            road_color = PACK_COLOR(255, 70, 70, 70);
-        }
-        seg->mesh = mesh_create_track_segment(seg->width, seg->length, road_color);
+        /* Place road tiles along segment */
+        {
+            int n_tiles = (int)(seg->length / TILE_ROAD_LENGTH + 0.99f);
+            if (n_tiles < 1) n_tiles = 1;
+            if (n_tiles > MAX_TILES_PER_SEGMENT) n_tiles = MAX_TILES_PER_SEGMENT;
+            float tile_len = seg->length / (float)n_tiles;
+            float scale_z = tile_len / TILE_ROAD_LENGTH;
+            float seg_angle = atan2f(seg->direction.x, seg->direction.z);
 
-        /* Create border meshes */
-        seg->border_left = mesh_create_track_segment(1.0f, seg->length, COLOR_WHITE);
-        seg->border_right = mesh_create_track_segment(1.0f, seg->length, COLOR_WHITE);
+            /* Tile data is pre-rotated: road runs along Z, curbs along X.
+             * Transform: translate(tile_center) * rotate_y(seg_angle) * scale(1,1,sz)
+             * This matches the old mesh_create_track_segment convention exactly. */
+            mat4_t scale_m = mat4_scale(1.0f, 1.0f, scale_z);
+            mat4_t seg_rot = mat4_rotate_y(seg_angle);
+            mat4_t rot_scale = mat4_multiply(seg_rot, scale_m);
+
+            seg->tile_count = n_tiles;
+            for (int t = 0; t < n_tiles; t++) {
+                float frac = ((float)t + 0.5f) / (float)n_tiles;
+                vec3_t tile_pos = vec3_lerp(seg->start_pos, seg->end_pos, frac);
+
+                mat4_t trans = mat4_translate(tile_pos.x, tile_pos.y, tile_pos.z);
+                mat4_t m = mat4_multiply(trans, rot_scale);
+
+                /* Alternate tile types for visual variety */
+                seg->tiles[t].type = (t % 3 == 2) ? TILE_DAMAGED : TILE_STRAIGHT;
+                seg->tiles[t].transform = m;
+            }
+        }
 
         /* Add checkpoint */
         if ((i + 1) % checkpoint_interval == 0 && track->checkpoint_count < MAX_CHECKPOINTS) {
@@ -181,22 +204,16 @@ track_t *track_generate(track_params_t *params) {
 
 void track_destroy(track_t *track) {
     if (!track) return;
-
-    for (int i = 0; i < track->segment_count; i++) {
-        mesh_destroy(track->segments[i].mesh);
-        mesh_destroy(track->segments[i].border_left);
-        mesh_destroy(track->segments[i].border_right);
-    }
-
+    /* Tile meshes are shared (owned by tile_data.c), nothing per-segment to free */
     free(track);
 }
 
 /* Render grass ground plane around camera position */
 static void render_grass(camera_t *cam) {
-    /* Grass quad centered on camera, well below track level */
-    /* Smaller size reduces far-distance depth precision issues */
-    float grass_size = 500.0f;
-    float grass_y = -1.0f;  /* Well below track surface at Y=0 */
+    /* Grass quad centered on camera, below track level */
+    /* Keep size modest to avoid depth precision issues at far edges */
+    float grass_size = 200.0f;
+    float grass_y = -0.5f;  /* Below track surface at Y=0 */
 
     vec3_t center = cam->position;
 
@@ -220,31 +237,22 @@ void track_render(track_t *track, camera_t *cam) {
     /* Render grass ground plane first (below track, above sky background) */
     render_grass(cam);
 
-    /* Render each segment */
+    /* Render tile-based road for each segment */
     for (int i = 0; i < track->segment_count; i++) {
         track_segment_t *seg = &track->segments[i];
 
-        /* Calculate segment transform */
-        mat4_t transform = mat4_identity();
+        /* Distance cull: skip segments far from camera */
+        vec3_t seg_center = vec3_lerp(seg->start_pos, seg->end_pos, 0.5f);
+        float dist = vec3_distance(cam->position, seg_center);
+        if (dist > 300.0f) continue;
 
-        /* Position */
-        mat4_t trans = mat4_translate(seg->start_pos.x, seg->start_pos.y, seg->start_pos.z);
-
-        /* Rotation to face direction */
-        float angle = atan2f(seg->direction.x, seg->direction.z);
-        mat4_t rot = mat4_rotate_y(angle);
-
-        transform = mat4_multiply(trans, rot);
-
-        /* Render track surface */
-        render_draw_mesh(seg->mesh, transform);
-
-        /* Render borders */
-        mat4_t left_offset = mat4_translate(-seg->width / 2 - 0.5f, 0.05f, 0);
-        mat4_t right_offset = mat4_translate(seg->width / 2 + 0.5f, 0.05f, 0);
-
-        render_draw_mesh(seg->border_left, mat4_multiply(transform, left_offset));
-        render_draw_mesh(seg->border_right, mat4_multiply(transform, right_offset));
+        /* Render each tile placement */
+        for (int t = 0; t < seg->tile_count; t++) {
+            mesh_t *tile_mesh = tile_get_mesh(seg->tiles[t].type);
+            if (tile_mesh) {
+                render_draw_mesh(tile_mesh, seg->tiles[t].transform);
+            }
+        }
     }
 
     /* Render start/finish line */

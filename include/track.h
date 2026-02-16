@@ -9,10 +9,12 @@
 #include <stdint.h>
 #include "math3d.h"
 #include "render.h"
+#include "tile_data.h"
 
 /* Maximum track segments */
 #define MAX_TRACK_SEGMENTS 256
 #define MAX_CHECKPOINTS 32
+#define MAX_TILES_PER_SEGMENT 6
 
 /* Track segment type */
 typedef enum {
@@ -22,6 +24,12 @@ typedef enum {
     SEGMENT_HILL_UP,
     SEGMENT_HILL_DOWN
 } segment_type_t;
+
+/* Tile placement within a segment */
+typedef struct {
+    tile_id_t type;
+    mat4_t transform;
+} tile_placement_t;
 
 /* Single track segment */
 typedef struct {
@@ -33,9 +41,8 @@ typedef struct {
     float length;
     float curve_angle;      /* For curved segments */
     float elevation_change; /* For hills */
-    mesh_t *mesh;
-    mesh_t *border_left;
-    mesh_t *border_right;
+    tile_placement_t tiles[MAX_TILES_PER_SEGMENT];
+    int tile_count;
 } track_segment_t;
 
 /* Checkpoint for lap timing */

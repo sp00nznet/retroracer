@@ -11,7 +11,7 @@
 # Source files
 SRCS = src/main.c src/game.c src/math3d.c src/render.c src/track.c \
        src/vehicle.c src/ai.c src/menu.c src/input.c src/physics.c \
-       src/audio.c src/model_data.c
+       src/audio.c src/model_data.c src/tile_data.c
 
 # Check if KOS is available
 ifdef KOS_BASE

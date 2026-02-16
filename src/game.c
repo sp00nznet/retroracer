@@ -5,6 +5,7 @@
 
 #include "game.h"
 #include "model_data.h"
+#include "tile_data.h"
 #include "physics.h"
 #include "audio.h"
 #include <stdlib.h>
@@ -36,6 +37,7 @@ void game_init(void) {
     render_init();
     input_init();
     track_init();
+    tile_init();
     vehicle_init();
     ai_init();
     physics_init();
@@ -61,6 +63,9 @@ void game_init(void) {
 void game_shutdown(void) {
     /* Clean up audio */
     audio_shutdown();
+
+    /* Clean up shared tile meshes */
+    tile_shutdown();
 
     /* Clean up track */
     if (game.track) {
@@ -517,13 +522,18 @@ static void render_countdown(void) {
 void game_render(void) {
     switch (game.state) {
         case GAME_STATE_MENU:
-            /* Menu renders directly to VRAM, no PVR */
+            /* Menu rendered through PVR to avoid VRAM/PVR double-buffer flicker */
+            render_begin_frame();
+            render_clear(PACK_COLOR(255, 20, 20, 60));
+            render_end_frame();
+            render_begin_hud();
             menu_render();
+            render_end_hud();
             break;
 
         case GAME_STATE_PAUSED:
         case GAME_STATE_RESULTS:
-            /* Render game in background, then menu overlay */
+            /* Render game in background with menu overlay via PVR */
             render_begin_frame();
             render_clear(COLOR_SKY);
             if (game.track) {
@@ -533,8 +543,11 @@ void game_render(void) {
                 vehicle_render(game.vehicles[i], &game.camera);
             }
             render_end_frame();
-            /* Now draw menu on top */
+            /* Menu overlay through PVR transparent list */
+            render_begin_hud();
+            render_draw_rect_2d(0, 0, 640, 480, PACK_COLOR(160, 10, 10, 40));
             menu_render();
+            render_end_hud();
             break;
 
         case GAME_STATE_COUNTDOWN:
@@ -542,7 +555,7 @@ void game_render(void) {
         case GAME_STATE_FINISHED:
             /* Render 3D scene */
             render_begin_frame();
-            render_clear(COLOR_SKY);  /* Sky as background - above horizon */
+            render_clear(COLOR_SKY);
 
             if (game.track) {
                 track_render(game.track, &game.camera);
