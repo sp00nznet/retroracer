@@ -52,8 +52,8 @@ static void init_poly_header(void) {
 void render_init(void) {
 #ifdef DREAMCAST
     pvr_init_params_t params = {
-        { PVR_BINSIZE_16, PVR_BINSIZE_0, PVR_BINSIZE_16, PVR_BINSIZE_0, PVR_BINSIZE_0 },
-        512 * 1024
+        { PVR_BINSIZE_32, PVR_BINSIZE_0, PVR_BINSIZE_32, PVR_BINSIZE_0, PVR_BINSIZE_0 },
+        768 * 1024
     };
     pvr_init(&params);
     /* Don't call vid_set_mode() after pvr_init - PVR manages its own

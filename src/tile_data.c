@@ -563,13 +563,106 @@ static mesh_t *create_tile_mesh(const float *verts, const int *faces,
     return mesh;
 }
 
+/* Create a flat road quad with curb edge stripes - 6 triangles total.
+ * Road center + 2 curb edge strips for visual definition.
+ * Keeps triangle count low for PVR tile bins (vs 22-50 from OBJ models). */
+static mesh_t *create_flat_road(float half_w, float half_l,
+                                uint32_t road_color, uint32_t edge_color) {
+    mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
+    if (!mesh) return NULL;
+    mesh->tri_count = 6;
+    mesh->triangles = (triangle_t *)malloc(sizeof(triangle_t) * 6);
+    if (!mesh->triangles) { free(mesh); return NULL; }
+    memset(mesh->triangles, 0, sizeof(triangle_t) * 6);
+    mesh->base_color = road_color;
+
+    float curb_w = 1.5f;  /* Width of curb edge stripe */
+    float inner = half_w - curb_w;
+
+    /* Road center (2 triangles) */
+    mesh->triangles[0].v[0].pos = (vec3_t){-inner, 0.01f, -half_l};
+    mesh->triangles[0].v[1].pos = (vec3_t){ inner, 0.01f, -half_l};
+    mesh->triangles[0].v[2].pos = (vec3_t){ inner, 0.01f,  half_l};
+    mesh->triangles[0].v[0].color = road_color;
+    mesh->triangles[0].v[1].color = road_color;
+    mesh->triangles[0].v[2].color = road_color;
+
+    mesh->triangles[1].v[0].pos = (vec3_t){-inner, 0.01f, -half_l};
+    mesh->triangles[1].v[1].pos = (vec3_t){ inner, 0.01f,  half_l};
+    mesh->triangles[1].v[2].pos = (vec3_t){-inner, 0.01f,  half_l};
+    mesh->triangles[1].v[0].color = road_color;
+    mesh->triangles[1].v[1].color = road_color;
+    mesh->triangles[1].v[2].color = road_color;
+
+    /* Left curb edge (2 triangles) */
+    mesh->triangles[2].v[0].pos = (vec3_t){-half_w, 0.0f, -half_l};
+    mesh->triangles[2].v[1].pos = (vec3_t){-inner,  0.0f, -half_l};
+    mesh->triangles[2].v[2].pos = (vec3_t){-inner,  0.0f,  half_l};
+    mesh->triangles[2].v[0].color = edge_color;
+    mesh->triangles[2].v[1].color = edge_color;
+    mesh->triangles[2].v[2].color = edge_color;
+
+    mesh->triangles[3].v[0].pos = (vec3_t){-half_w, 0.0f, -half_l};
+    mesh->triangles[3].v[1].pos = (vec3_t){-inner,  0.0f,  half_l};
+    mesh->triangles[3].v[2].pos = (vec3_t){-half_w, 0.0f,  half_l};
+    mesh->triangles[3].v[0].color = edge_color;
+    mesh->triangles[3].v[1].color = edge_color;
+    mesh->triangles[3].v[2].color = edge_color;
+
+    /* Right curb edge (2 triangles) */
+    mesh->triangles[4].v[0].pos = (vec3_t){ inner,  0.0f, -half_l};
+    mesh->triangles[4].v[1].pos = (vec3_t){ half_w, 0.0f, -half_l};
+    mesh->triangles[4].v[2].pos = (vec3_t){ half_w, 0.0f,  half_l};
+    mesh->triangles[4].v[0].color = edge_color;
+    mesh->triangles[4].v[1].color = edge_color;
+    mesh->triangles[4].v[2].color = edge_color;
+
+    mesh->triangles[5].v[0].pos = (vec3_t){ inner,  0.0f, -half_l};
+    mesh->triangles[5].v[1].pos = (vec3_t){ half_w, 0.0f,  half_l};
+    mesh->triangles[5].v[2].pos = (vec3_t){ inner,  0.0f,  half_l};
+    mesh->triangles[5].v[0].color = edge_color;
+    mesh->triangles[5].v[1].color = edge_color;
+    mesh->triangles[5].v[2].color = edge_color;
+
+    return mesh;
+}
+
+/* Simple 2-triangle flat quad for non-road tiles */
+static mesh_t *create_flat_quad(float half_w, float half_l, uint32_t color) {
+    mesh_t *mesh = (mesh_t *)malloc(sizeof(mesh_t));
+    if (!mesh) return NULL;
+    mesh->tri_count = 2;
+    mesh->triangles = (triangle_t *)malloc(sizeof(triangle_t) * 2);
+    if (!mesh->triangles) { free(mesh); return NULL; }
+    memset(mesh->triangles, 0, sizeof(triangle_t) * 2);
+    mesh->base_color = color;
+
+    mesh->triangles[0].v[0].pos = (vec3_t){-half_w, 0.0f, -half_l};
+    mesh->triangles[0].v[1].pos = (vec3_t){ half_w, 0.0f, -half_l};
+    mesh->triangles[0].v[2].pos = (vec3_t){ half_w, 0.0f,  half_l};
+    mesh->triangles[0].v[0].color = color;
+    mesh->triangles[0].v[1].color = color;
+    mesh->triangles[0].v[2].color = color;
+
+    mesh->triangles[1].v[0].pos = (vec3_t){-half_w, 0.0f, -half_l};
+    mesh->triangles[1].v[1].pos = (vec3_t){ half_w, 0.0f,  half_l};
+    mesh->triangles[1].v[2].pos = (vec3_t){-half_w, 0.0f,  half_l};
+    mesh->triangles[1].v[0].color = color;
+    mesh->triangles[1].v[1].color = color;
+    mesh->triangles[1].v[2].color = color;
+
+    return mesh;
+}
+
 void tile_init(void) {
-    tile_meshes[TILE_STRAIGHT] = create_tile_mesh(straight_verts, straight_faces, straight_normals, straight_colors, 22);
-    tile_meshes[TILE_CORNER] = create_tile_mesh(corner_verts, corner_faces, corner_normals, corner_colors, 50);
-    tile_meshes[TILE_DAMAGED] = create_tile_mesh(damaged_verts, damaged_faces, damaged_normals, damaged_colors, 24);
-    tile_meshes[TILE_SIDE] = create_tile_mesh(side_verts, side_faces, side_normals, side_colors, 12);
-    tile_meshes[TILE_PAVEMENT] = create_tile_mesh(pavement_verts, pavement_faces, pavement_normals, pavement_colors, 2);
-    tile_meshes[TILE_GRASS] = create_tile_mesh(grass_verts, grass_faces, grass_normals, grass_colors, 2);
+    /* Road tiles: 6 triangles each (road surface + curb edge stripes).
+     * Much lower than OBJ models (22-50 tri) to stay within PVR tile bins. */
+    tile_meshes[TILE_STRAIGHT] = create_flat_road(12.0f, 6.0f, 0xFF606060, 0xFFE0E040);
+    tile_meshes[TILE_CORNER]   = create_flat_road(12.0f, 6.0f, 0xFF585858, 0xFFD04040);
+    tile_meshes[TILE_DAMAGED]  = create_flat_road(12.0f, 6.0f, 0xFF484848, 0xFFE0E040);
+    tile_meshes[TILE_SIDE]     = create_flat_quad(6.0f, 6.0f, 0xFF404040);
+    tile_meshes[TILE_PAVEMENT] = create_flat_quad(6.0f, 6.0f, 0xFF707070);
+    tile_meshes[TILE_GRASS]    = create_flat_quad(6.0f, 6.0f, 0xFF228B22);
 }
 
 void tile_shutdown(void) {

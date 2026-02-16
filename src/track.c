@@ -208,34 +208,15 @@ void track_destroy(track_t *track) {
     free(track);
 }
 
-/* Render grass ground plane around camera position */
-static void render_grass(camera_t *cam) {
-    /* Grass quad centered on camera, below track level */
-    /* Keep size modest to avoid depth precision issues at far edges */
-    float grass_size = 200.0f;
-    float grass_y = -0.5f;  /* Below track surface at Y=0 */
-
-    vec3_t center = cam->position;
-
-    vertex_t v0, v1, v2, v3;
-    v0.pos = vec3_create(center.x - grass_size, grass_y, center.z - grass_size);
-    v1.pos = vec3_create(center.x + grass_size, grass_y, center.z - grass_size);
-    v2.pos = vec3_create(center.x + grass_size, grass_y, center.z + grass_size);
-    v3.pos = vec3_create(center.x - grass_size, grass_y, center.z + grass_size);
-
-    v0.color = v1.color = v2.color = v3.color = COLOR_GRASS;
-
-    render_draw_triangle(&v0, &v1, &v2);
-    render_draw_triangle(&v0, &v2, &v3);
-}
 
 void track_render(track_t *track, camera_t *cam) {
     if (!track) return;
 
     render_set_camera(cam);
 
-    /* Render grass ground plane first (below track, above sky background) */
-    render_grass(cam);
+    /* Use PVR background color for grass - avoids z-fighting and
+     * polygon bin overflow from a screen-filling ground plane */
+    render_clear(COLOR_GRASS);
 
     /* Render tile-based road for each segment */
     for (int i = 0; i < track->segment_count; i++) {

@@ -183,30 +183,23 @@ void vehicle_update(vehicle_t *vehicle, track_t *track, float dt) {
     float drag_factor = vehicle->is_on_track ? 0.99f : 0.95f;
     vehicle->velocity = vec3_scale(vehicle->velocity, drag_factor);
 
-    /* Off-track recovery: steer vehicle back toward nearest track segment */
-    if (!vehicle->is_on_track) {
+    /* Off-track recovery: only teleport when very far from all track geometry */
+    {
         int nearest_seg = track_find_segment(track, vehicle->position);
         if (nearest_seg >= 0) {
             vec3_t seg_center = vec3_lerp(
                 track->segments[nearest_seg].start_pos,
                 track->segments[nearest_seg].end_pos, 0.5f);
-            vec3_t to_track = vec3_sub(seg_center, vehicle->position);
-            float off_dist = vec3_length(to_track);
+            float off_dist = vec3_distance(vehicle->position, seg_center);
 
-            if (off_dist > 30.0f) {
-                /* Far off track - teleport back to nearest segment */
+            if (off_dist > 80.0f) {
+                /* Very far off track - teleport back */
                 vehicle->position = seg_center;
                 vehicle->position.y = track->segments[nearest_seg].start_pos.y;
                 vehicle->speed *= 0.3f;
                 vec3_t new_dir = track->segments[nearest_seg].direction;
                 vehicle->rotation_y = atan2f(new_dir.x, new_dir.z);
                 vehicle->velocity = vec3_scale(new_dir, vehicle->speed);
-            } else if (off_dist > 5.0f) {
-                /* Moderately off track - apply corrective force toward track */
-                to_track = vec3_normalize(to_track);
-                float correction = 15.0f * dt;
-                vehicle->velocity = vec3_add(vehicle->velocity,
-                    vec3_scale(to_track, correction));
             }
         }
     }
