@@ -4,6 +4,7 @@
  */
 
 #include "game.h"
+#include "model_data.h"
 #include "physics.h"
 #include "audio.h"
 #include <stdlib.h>
@@ -118,6 +119,12 @@ static void spawn_vehicles(int num_ai, int include_player) {
         vehicle_idx++;
     }
 
+    /* Model rotation for AI vehicles - cycle through all models */
+    static const model_id_t ai_models[] = {
+        MODEL_CAR02, MODEL_CAR03, MODEL_POLICE,
+        MODEL_PICKUP01, MODEL_PICKUP02, MODEL_BUS, MODEL_CAR01
+    };
+
     /* Spawn AI vehicles */
     for (int i = 0; i < num_ai && vehicle_idx < MAX_VEHICLES; i++) {
         vehicle_t *ai_vehicle = vehicle_create(
@@ -125,6 +132,10 @@ static void spawn_vehicles(int num_ai, int include_player) {
             ai_colors[i % 7],
             0
         );
+        /* Override with varied model for visual diversity */
+        mesh_destroy(ai_vehicle->mesh);
+        ai_vehicle->model_id = ai_models[i % 7];
+        ai_vehicle->mesh = model_create_mesh(ai_vehicle->model_id, ai_colors[i % 7]);
         ai_vehicle->total_laps = game.num_laps;
 
         /* Grid position */

@@ -10,6 +10,7 @@
 #include "math3d.h"
 #include "render.h"
 #include "track.h"
+#include "model_data.h"
 
 /* Maximum vehicles in a race */
 #define MAX_VEHICLES 8
@@ -60,6 +61,7 @@ typedef struct {
     /* Rendering */
     mesh_t *mesh;
     uint32_t color;
+    model_id_t model_id;
     vehicle_class_t vehicle_class;
 
     /* State flags */

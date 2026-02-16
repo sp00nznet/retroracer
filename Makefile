@@ -11,7 +11,7 @@
 # Source files
 SRCS = src/main.c src/game.c src/math3d.c src/render.c src/track.c \
        src/vehicle.c src/ai.c src/menu.c src/input.c src/physics.c \
-       src/audio.c
+       src/audio.c src/model_data.c
 
 # Check if KOS is available
 ifdef KOS_BASE
@@ -85,6 +85,6 @@ endif
 
 # Force native build even if KOS is available
 native:
-	$(MAKE) -f Makefile.native
+	$(MAKE) -f archive/Makefile.native
 
 .PHONY: all clean rm-elf cdi run native

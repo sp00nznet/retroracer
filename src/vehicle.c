@@ -4,6 +4,7 @@
  */
 
 #include "vehicle.h"
+#include "model_data.h"
 #include "physics.h"
 #include <stdlib.h>
 #include <string.h>
@@ -42,8 +43,17 @@ vehicle_t *vehicle_create(vehicle_class_t vclass, uint32_t color, int is_player)
     v->grip = vehicle_stats[vclass].grip;
     v->drag = 0.01f;
 
-    /* Create mesh */
-    v->mesh = mesh_create_vehicle(color);
+    /* Map vehicle class to 3D model */
+    switch (vclass) {
+        case VEHICLE_STANDARD: v->model_id = MODEL_CAR01; break;
+        case VEHICLE_SPEED:    v->model_id = MODEL_CAR02; break;
+        case VEHICLE_HANDLING: v->model_id = MODEL_CAR03; break;
+        case VEHICLE_BALANCED: v->model_id = MODEL_POLICE; break;
+        default:               v->model_id = MODEL_CAR01; break;
+    }
+
+    /* Create mesh from OBJ model data */
+    v->mesh = model_create_mesh(v->model_id, color);
 
     /* Initialize race state */
     v->current_lap = 0;
@@ -223,7 +233,7 @@ void vehicle_render(vehicle_t *vehicle, camera_t *cam) {
     /* Position */
     mat4_t trans = mat4_translate(
         vehicle->position.x,
-        vehicle->position.y + 0.3f,  /* Offset to sit on ground */
+        vehicle->position.y,  /* OBJ models have base at Y=0 */
         vehicle->position.z
     );
 
